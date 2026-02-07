@@ -1,0 +1,20 @@
+<label>Competition:</label>
+<select name="comp">
+    <% compList.forEach(comp => { %>
+        <option label="<%= comp.name %>" value="<%= comp.id %>">
+    <% }) %>
+</select>
+<label>Home team:</label>
+<select name="homeTeam">
+    <% teamList.forEach(team => { %>
+        <option label="<%= team.teamName %>" value="<%= team.id %>">
+    <% }) %>
+</select>
+<label>Away team:</label>
+<select name="awayTeam">
+    <% teamList.forEach(team => { %>
+        <option label="<%= team.teamName %>" value="<%= team.id %>">
+    <% }) %>
+</select>
+<label>Match date:</label>
+<input type="date" name="matchDate" value="">

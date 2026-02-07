@@ -1,0 +1,14 @@
+<h2>Pub directory</h2>
+<form action="/pubs" method="GET">
+    <label>Pub name</label>
+    <input type="text" name="pubSearchName">
+    <button type="submit">Search</button>
+</form>
+<br>
+
+<% pubListArray.forEach(pub => { %>
+    <div><%= pub.name %></div>
+<% }) %>
+
+<br>
+<a href="/pubs/new">Add new pub</a>

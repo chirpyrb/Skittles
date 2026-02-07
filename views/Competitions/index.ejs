@@ -1,0 +1,13 @@
+<h2>Competitions</h2>
+<br>
+
+<% Competitions.forEach(comp => { %>
+    <div>
+        <span><%= comp.name %></span>
+        <span>Start date: <%= comp.startDate %></span>
+        <span>End date: <%= comp.endDate %></span>
+    </div>
+<% }) %>
+
+<br>
+<a href="/Competitions/new">Add new competition</a>

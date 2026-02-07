@@ -1,0 +1,33 @@
+<header class="main-header">
+    <div class="header-banner">
+    <img src="/images/logo-with-text-e1666138549419.png" />
+    </div>
+    <h1><a href="/">Weymouth &amp; Portland Skittles League</a></h1>
+    <div>
+        <% if (locals.user) { %>
+            <span><a href="/users/profile">Profile</a></span>
+        <% } else { %>
+            <span><a href="/users/login/">Login</a></span>
+            <span><a href="/users/register">Register</a></span>
+        <% } %>
+        
+    </div>
+    <div>
+    <nav class="nav main-nav">
+        <ul>
+            <li>Home</li>
+            <li><a href="/pubs">Pubs</a></li>
+            <li><a href="/teams">Teams</a></li>
+            <li><a href="/alleys">Alleys</a></li>
+            <li>League </li>
+            <li><a href="/divisions">Divisions</a></li>
+            <li><a href="/fixtures">Fixtures</a></li>
+            <li><a href="/competitions">Competitions</a></li>
+            <li>Rules</li>
+            <li>Contact</li>
+            <li>Links</li>
+        </ul>
+    </nav>
+    </div>
+    
+</header>

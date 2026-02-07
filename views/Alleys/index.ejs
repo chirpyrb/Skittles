@@ -1,0 +1,18 @@
+<h2>Alley directory</h2>
+<form action="/alleys" method="GET">
+    <label>Alley name</label>
+    <input type="text" name="alleySearchName">
+    <button type="submit">Search</button>
+</form>
+<br>
+
+<% alleyListArray.forEach(alley => { %>
+    <div>
+        <span><%= alley.PubName %></span>
+        <span> - </span>
+        <span><%= alley.AlleyName %></span>
+    </div>
+<% }) %>
+
+<br>
+<a href="/alleys/new">Add new alley</a>

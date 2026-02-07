@@ -1,0 +1,38 @@
+
+<div>
+    <div>
+        <span><%=gameInfo.matchDate%></span>
+        <span><%=gameInfo.Comp%> Season</span>
+    </div>
+    <div>
+        <span><%=gameInfo.homeTeam%></span>
+        <span>Home Crest</span>
+        <span>Home score</span>
+        <span>V</span>
+        <span>Away score</span>
+        <span>Away Crest</span>
+        <span><%=gameInfo.awayTeam%></span>
+    </div>
+    <div>
+        <span>Venue: venue</span>
+    </div>
+</div>
+<div>
+    <nav>
+        <li>Teams</li>
+        <div>
+            <li><%=gameInfo.homeTeam%></li>
+            <li><%=gameInfo.awayTeam%></li>
+        </div>
+        <li>Table</li>
+        <li>Head-to-head</li>
+        <li>Scorecard</li>
+    </nav>
+</div>
+<div>
+    <% if (gameInfo.id == "live") { %>
+
+    <% } else { %>
+        <a href="/fixtures/scorecard/new?gameid=<%=gameInfo.id%>">Begin game</a>
+    <% } %>
+</div>

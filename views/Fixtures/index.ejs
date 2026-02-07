@@ -1,0 +1,16 @@
+<h2>Fixtures</h2>
+<br>
+
+<% fixtureList.forEach(fixture => { %>
+    <div>
+        <a href="/fixtures/scorecard?gameid=<%=fixture.id%>"> 
+        <span><%= fixture.matchDate %></span>
+        <span><%= fixture.homeTeam %></span>
+        <span><b>vs</b></span>
+        <span><%= fixture.awayTeam %></span>
+        </a>    
+    </div>
+<% }) %>
+
+<br>
+<a href="/fixtures/new">Add new fixture</a>

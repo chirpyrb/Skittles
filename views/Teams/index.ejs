@@ -1,0 +1,12 @@
+<h2>League team directory</h2>
+<% allTeams.forEach(team => { %>
+    <div>
+        <span><a href="/teams?teamName=<%= team.teamName %>"><%= team.teamName %></a></span>
+        <span><%= team.homeAlley %></span>
+        <span><%= team.division %></span>
+    </div>
+<% }) %>
+<br>
+
+<a href="/teams/new">New Team</a>
+All teams

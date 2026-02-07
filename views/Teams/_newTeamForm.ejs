@@ -1,0 +1,14 @@
+<label>Team Name:</label>
+<input type="text" name="newTeamName" value="">
+<label>Alley</label>
+<select name="newTeamAlley">
+    <% alleyList.forEach(alley => { %>
+        <option label="<%= alley.name %>" value="<%= alley.id %>">
+    <% }) %>
+</select>
+<label>Division</label>
+<select name="newTeamDiv">
+    <% divList.forEach(div => { %>
+        <option label="<%= div.name %>" value="<%= div.id %>">
+    <% }) %>
+</select>

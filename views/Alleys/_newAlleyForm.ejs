@@ -1,0 +1,8 @@
+<label>Pub</label>
+<select name="newAlleyPub">
+    <% pubListArray.forEach(pub => { %>
+        <option label="<%= pub.name %>" value="<%= pub.id %>">
+    <% }) %>
+</select>
+<label>Name:</label>
+<input type="text" name="newAlleyName" value="">

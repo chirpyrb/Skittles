@@ -1,0 +1,20 @@
+<h2><%=team.teamName%></h2>
+<div>
+    <span><b>Home alley:</b></span>
+    <span><a href="/alleys?alleyName=<%=team.homeAlley%>"><%=team.homeAlley%></a></span>
+</div>
+<div>
+    <span><b>Current division:</b></span>
+    <span><a href="/divisions?divName=<%=team.division%>"><%=team.division%></a></span>
+</div>
+<div>
+    <b>Players:</b>
+    <% playerList.forEach(player => { %>
+    <div>
+        <span><%= player.firstName %></span>
+        <span><%= player.secondName %></span>
+        <span>(<%= player.alias %>)</span>
+    </div>
+    <% }) %>
+    <a href="/players/new?teamName=<%=team.teamName%>">Add player</a>
+</div>

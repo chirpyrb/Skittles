@@ -1,0 +1,123 @@
+<form id="scorecardForm" action="/fixtures/scorecard" method="post">
+    <div id="teams" class="step active">
+        <%- include('scorecard/_setTeam.ejs')%>
+    </div>
+    <div id="Hand-1" class="step">
+        <h2>Hand 1</h2>
+        <% for (let i = 0; i < 7; i++) { %>
+            <%- include('scorecard/_handEntry.ejs')%>
+        <% } %>
+    </div>
+    <div id="Hand-2" class="step">
+        <h2>Hand 2</h2>
+        <% for (let i = 0; i < 7; i++) { %>
+            <%- include('scorecard/_handEntry.ejs')%>
+        <% } %>
+    </div>
+    <div id="Hand-3" class="step">
+        <h2>Hand 3</h2>
+        <% for (let i = 0; i < 7; i++) { %>
+            <%- include('scorecard/_handEntry.ejs')%>
+        <% } %>
+    </div>
+    <div id="Hand-4" class="step">
+        <h2>Hand 4</h2>
+        <% for (let i = 0; i < 7; i++) { %>
+            <%- include('scorecard/_handEntry.ejs')%>
+        <% } %>
+    </div>
+    <div id="Hand-5" class="step">
+        <h2>Hand 5</h2>
+        <% for (let i = 0; i < 7; i++) { %>
+            <%- include('scorecard/_handEntry.ejs')%>
+        <% } %>
+    </div>
+    <div id="Hand-6" class="step">
+        <h2>Hand 6</h2>
+        <% for (let i = 0; i < 7; i++) { %>
+            <%- include('scorecard/_handEntry.ejs')%>
+        <% } %>
+    </div>
+    <div id="Hand-7" class="step">
+        <h2>Hand 7</h2>
+        <% for (let i = 0; i < 7; i++) { %>
+            <%- include('scorecard/_handEntry.ejs')%>
+        <% } %>
+    </div>
+    <div id="Game-summary" class="step">
+        <h2>Game Summary</h2>
+
+    </div>
+    <div class="button-container">
+        <button type="button" class="previous">Previous</button>
+        <button type="button" class="next">Next</button>
+        <button type="submit" class="previous" style="display: none;">Submit</button>
+    </div>
+</form>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.getElementById('scorecardForm');
+        const steps = form.querySelectorAll('.step');
+        const prevButton = form.querySelector('.previous');
+        const nextButton = form.querySelector('.next');
+        const scoreEmbellishments = form.querySelectorAll('scoreEmbellishment')
+        let currentStep = 0;
+
+        updateButtons();
+
+        nextButton.addEventListener('click', () => {
+            if (validateForm()) {
+                steps[currentStep].classList.remove('active');
+                currentStep++;
+                steps[currentStep].classList.add('active');
+                updateButtons();
+            }
+        });
+
+        prevButton.addEventListener('click', () => {
+            steps[currentStep].classList
+                                    .remove('active');
+            currentStep--;
+            steps[currentStep].classList
+                                    .add('active');
+            updateButtons();
+        });
+
+        form.addEventListener('submit', (event) => {
+            if (!validateForm()) {
+                event.preventDefault();
+            }
+        });
+
+        function validateForm() {
+            const currentInputs = steps[currentStep].querySelectorAll('input, textarea');
+            let valid = true;
+            currentInputs.forEach(input => {
+                if (!input.checkValidity()) {
+                    input.reportValidity();
+                    valid = false;
+                }
+            });
+            return valid;
+        }
+
+        function updateButtons() {
+            if (currentStep === 0) {
+                prevButton.style.display = 'none';
+            } else {
+                prevButton.style.display = 'inline-block';
+            }
+
+            if (currentStep === steps.length - 1) {
+                nextButton.style.display = 'none';
+                form.querySelector('button[type="submit"]')
+                          .style.display = 'inline-block';
+            } else {
+                nextButton.style.display = 'inline-block';
+                form.querySelector('button[type="submit"]')
+                          .style.display = 'none';
+            }
+        }
+    });
+</script>
