@@ -23,21 +23,6 @@ const session = require('express-session')
 const expressLayouts = require('express-ejs-layouts')
 const bodyParser = require('body-parser')
 
-
-//const flash = require('express-flash')
-
-
-//const sqlite3 = require('sqlite3').verbose()
-//const SQ3 = require('./models/sql')
-//const db = new sqlite3.Database("./skittles.sql3")
-
-//const passport = require('passport')
-//const initPassport = require('./passport-config')
-//initPassport(passport,
-//    async userName => { return await SQ3.fetchFirst(SQ3.db, 'SELECT * FROM Users WHERE userName = ?', userName) }, 
-//    async id => { return await SQ3.fetchFirst(SQ3.db, 'SELECT * FROM Users WHERE id = ?', id) }
-//)
-
 // Use the view-engine
 app.set('view engine', 'ejs')
 app.set('views', __dirname + '/views')
@@ -53,13 +38,6 @@ app.use(session({
     resave: false,
     saveUninitialized: false
 }))
-
-//app.use(flash())
-//app.use(passport.initialize())
-//app.use(passport.session())
-
-// Create a table, if we havent already.
-//db.run('CREATE TABLE IF NOT EXISTS Pubs (id INTEGER PRIMARY KEY, name TEXT NOT NULL)')
 
 const indexRouter = require('./routes/index')
 const pubRouter = require('./routes/pubs')
