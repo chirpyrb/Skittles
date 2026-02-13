@@ -1,47 +1,50 @@
 <form id="scorecardForm" action="/fixtures/scorecard" method="post">
-    <div id="teams" class="step active">
-        <%- include('scorecard/_setTeam.ejs')%>
-    </div>
-    <div id="Hand-1" class="step">
-        <h2>Hand 1</h2>
-        <% for (let i = 0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs')%>
-        <% } %>
+    <div id="Hand-1" class="step active">
+        <div>
+            <h2>Hand 1</h2>
+            <% for (let i = 0; i < 7; i++) { %>
+                <%- include('scorecard/_handEntry.ejs', {handNumber: 1})%>
+            <% } %>
+        </div>
+        <div>
+            <span class="hand-total-score-1">0</span>
+            <span class="hand-total-bolters-1">0</span>
+        </div>
     </div>
     <div id="Hand-2" class="step">
         <h2>Hand 2</h2>
         <% for (let i = 0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs')%>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 2})%>
         <% } %>
     </div>
     <div id="Hand-3" class="step">
         <h2>Hand 3</h2>
         <% for (let i = 0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs')%>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 3})%>
         <% } %>
     </div>
     <div id="Hand-4" class="step">
         <h2>Hand 4</h2>
         <% for (let i = 0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs')%>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 4})%>
         <% } %>
     </div>
     <div id="Hand-5" class="step">
         <h2>Hand 5</h2>
         <% for (let i = 0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs')%>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 5})%>
         <% } %>
     </div>
     <div id="Hand-6" class="step">
         <h2>Hand 6</h2>
         <% for (let i = 0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs')%>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 6})%>
         <% } %>
     </div>
     <div id="Hand-7" class="step">
         <h2>Hand 7</h2>
         <% for (let i = 0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs')%>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 7})%>
         <% } %>
     </div>
     <div id="Game-summary" class="step">

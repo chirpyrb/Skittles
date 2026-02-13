@@ -13,7 +13,7 @@ async function usernameExists(username) {
     const Q = await SQ3.fetchFirst(SQ3.db, 'SELECT * FROM Users WHERE userName = ?', username)
     console.log(`Found: ${Q}`)
     if (Q.userName == null){
-        return null
+        return false
     } else {
         return Q
     }
@@ -50,8 +50,25 @@ async function authenticateUser(username, password) {
     }
 }
 
-function userPermissions(req, res, next, role) {
-
+async function userPermissions(username, role) {
+    // Check that a username and role were provided.
+    if (username == null || role == null) {
+        console.log("Username or role not provided")    
+        return false
+    } else {
+        // Check the user exists.
+        const user = await usernameExists(username)
+        if (user != null) {
+            // Check the user has the required role.
+            if (user.access == role) {
+                return true
+            } else {
+                return false
+            }
+        } else {
+            return false
+        }
+    }
 }
 
 // Export things, maybe only the middleware? What about new users?
@@ -59,5 +76,6 @@ module.exports = {
     initUserDatabase,
     usernameExists,
     addUser,
-    authenticateUser
+    authenticateUser,
+    userPermissions
 }

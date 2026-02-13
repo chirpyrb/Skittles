@@ -79,24 +79,88 @@ router.post('/', async (req, res) => {
 })
 
 router.get('/scorecard/new', async (req, res) => {
-    
-    // Get the info of the fixture being managed.
-    const fixtureID = req.query.gameid;
-    const fixtureInfo = await fixture.getFixtureInfo(fixtureID)
-    const homeSquad = await player.getPlayerListForTeam(fixtureInfo.homeTeamID)
-    const awaysquad = await player.getPlayerListForTeam(fixtureInfo.awayTeamID)
 
-    // Check that the User is a member of one of the teams.
-    // if (req.session.user.teamID == fixtureInfo.homeTeamID) {
-    // const plyerList = homeSquad
-    // } || req.session.user.teamID != fixtureInfo.awayTeamID)
-    // Assume for now, they are.
+    // Check that the User is logged in.
+    if (req.session.user == null) {
+        console.log("User not logged in")
+        console.log(req.url)
+        req.session.returnTo = '/fixtures' + req.url
+        res.redirect('/users/login')
+        return
+    }
 
+    console.log('2', req.session.user)
+    // Check that the User is a captain of one of the teams in the fixture.
+    if (!auth.userPermissions(req.session.user.userName, "dev")) {
+        console.log("User doesn't have permissions to manage fixtures")
+        res.redirect('/users/login')
+        return
+    }
+  
+    // Check that the User hasn't started a fixture already.
+    if (req.session.user.gamesInProgress == null) {
+        // No fixtures in progress, so they haven't started this one.
+        // Get the info of the fixture being managed.
+        const fixtureID = req.query.gameid
+        const fixtureInfo = await fixture.getFixtureInfo(fixtureID)
+
+        // Check which team the User plays for, and that they are a captain of that team.
+        if (req.session.user.Team == fixtureInfo.homeTeamID) {
+            console.log("User is home team captain")
+            // User is home team captain.
+            req.session.user.gamesInProgress = fixtureID
+            req.session.save()
+            res.redirect('/fixtures/scorecard/new/team')
+            return
+        } else if (req.session.user.Team == fixtureInfo.awayTeamID) {
+            // User is away team captain.
+            console.log("User is away team captain")
+            req.session.user.gamesInProgress = fixtureID
+            req.session.save()
+            res.redirect('/fixtures/scorecard/new/team')
+            return
+        } else {
+            // User isn't a captain of either team, so they can't manage this fixture.
+            console.log("User isn't a captain of either team, so they can't manage this fixture.")
+            res.redirect('/users/login')
+            return
+        }
+    } else {
+    }
     // Show the set team page.
-
     res.render('fixtures/scorecard', {fixtureInfo: fixtureInfo, playerList: awaysquad})
+})
 
+router.get('/scorecard/new/team', async (req, res) => {
 
+    // Check that the User is logged in.
+    if (req.session.user == null) {
+        res.redirect('/users/login')
+        return
+    }
+
+    if (req.session.user.gamesInProgress == null) {
+        console.log("User doesn't have a game in progress")
+        res.redirect('/fixtures')
+        return
+    }   
+
+    // Get the player list for the user's team.
+    const teamList = await player.getPlayerListForTeam(req.session.user.Team)
+    res.render('fixtures/scorecard/setTeam', {playerList: teamList})
+})
+
+router.post('/scorecard/new/team', async (req, res) => {
+    // Get the team sheet data from the form.
+    console.log(req.body.player)
+
+    // TODO Validate the data, check the players are in the team, etc.
+
+    // Save the team sheet data to the session for now, but this should be saved to the database.
+    req.session.teamSheet = req.body.player
+    req.session.save()
+
+    res.render('fixtures/scorecard', {teamSheet: req.session.teamSheet})
 })
 
 router.post('/scorecard', async (req, res) => {

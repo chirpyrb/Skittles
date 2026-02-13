@@ -47,13 +47,17 @@ router.post('/login', async (req, res) => {
         const user = await auth.authenticateUser(userName, password)
         console.log(user)
         if (user != null) {
-            req.session.user = {
-                id: user.id
-            }
+            req.session.user = user
             req.session.save()
-            res.redirect('/')
+            if (req.session.returnTo != null) {
+                res.redirect(req.session.returnTo)
+                req.session.returnTo = null
+                req.session.save()
+                return
+            }
         } else {
             res.send('Authentication failed')
+            res.redirect('/')
         }
     } else {
         res.send('Username not found')
