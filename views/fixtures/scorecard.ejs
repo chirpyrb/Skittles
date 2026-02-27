@@ -2,54 +2,78 @@
     <div id="Hand-1" class="step active">
         <div>
             <h2>Hand 1</h2>
-            <% for (let i = 0; i < 7; i++) { %>
+            <% for (let i=0; i < 7; i++) { %>
                 <%- include('scorecard/_handEntry.ejs', {handNumber: 1})%>
-            <% } %>
+                    <% } %>
         </div>
         <div>
-            <span class="hand-total-score-1">0</span>
-            <span class="hand-total-bolters-1">0</span>
+            <span class="hand-total score hand-1">0</span>
+            <span class="hand-total bolters hand-1">0</span>
         </div>
     </div>
     <div id="Hand-2" class="step">
         <h2>Hand 2</h2>
-        <% for (let i = 0; i < 7; i++) { %>
+        <% for (let i=0; i < 7; i++) { %>
             <%- include('scorecard/_handEntry.ejs', {handNumber: 2})%>
-        <% } %>
+                <% } %>
+                    <div>
+                        <span class="hand-total score hand-2">0</span>
+                        <span class="hand-total bolters hand-2">0</span>
+                    </div>
     </div>
     <div id="Hand-3" class="step">
         <h2>Hand 3</h2>
-        <% for (let i = 0; i < 7; i++) { %>
+        <% for (let i=0; i < 7; i++) { %>
             <%- include('scorecard/_handEntry.ejs', {handNumber: 3})%>
-        <% } %>
+                <% } %>
+                    <div>
+                        <span class="hand-total score hand-3">0</span>
+                        <span class="hand-total bolters hand-3">0</span>
+                    </div>
     </div>
     <div id="Hand-4" class="step">
         <h2>Hand 4</h2>
-        <% for (let i = 0; i < 7; i++) { %>
+        <% for (let i=0; i < 7; i++) { %>
             <%- include('scorecard/_handEntry.ejs', {handNumber: 4})%>
-        <% } %>
+                <% } %>
+                    <div>
+                        <span class="hand-total score hand-4">0</span>
+                        <span class="hand-total bolters hand-4">0</span>
+                    </div>
     </div>
     <div id="Hand-5" class="step">
         <h2>Hand 5</h2>
-        <% for (let i = 0; i < 7; i++) { %>
+        <% for (let i=0; i < 7; i++) { %>
             <%- include('scorecard/_handEntry.ejs', {handNumber: 5})%>
-        <% } %>
+                <% } %>
+                    <div>
+                        <span class="hand-total score hand-5">0</span>
+                        <span class="hand-total bolters hand-5">0</span>
+                    </div>
     </div>
     <div id="Hand-6" class="step">
         <h2>Hand 6</h2>
-        <% for (let i = 0; i < 7; i++) { %>
+        <% for (let i=0; i < 7; i++) { %>
             <%- include('scorecard/_handEntry.ejs', {handNumber: 6})%>
-        <% } %>
+                <% } %>
+                    <div>
+                        <span class="hand-total score hand-6">0</span>
+                        <span class="hand-total bolters hand-6">0</span>
+                    </div>
     </div>
     <div id="Hand-7" class="step">
         <h2>Hand 7</h2>
-        <% for (let i = 0; i < 7; i++) { %>
+        <% for (let i=0; i < 7; i++) { %>
             <%- include('scorecard/_handEntry.ejs', {handNumber: 7})%>
-        <% } %>
+                <% } %>
+                    <div>
+                        <span class="hand-total score hand-7">0</span>
+                        <span class="hand-total bolters hand-7">0</span>
+                    </div>
     </div>
     <div id="Game-summary" class="step">
         <h2>Game Summary</h2>
-
+        <%- include('scorecard/_finalScore.ejs') %>
     </div>
     <div class="button-container">
         <button type="button" class="previous">Previous</button>
@@ -64,7 +88,10 @@
         const steps = form.querySelectorAll('.step');
         const prevButton = form.querySelector('.previous');
         const nextButton = form.querySelector('.next');
-        const scoreEmbellishments = form.querySelectorAll('scoreEmbellishment')
+        const handScoreTotals = form.querySelectorAll('.input.score');
+        const handBolterTotals = form.querySelectorAll('.input.bolters');
+        const scoreEmbellishments = form.querySelectorAll('scoreEmbellishment');
+
         let currentStep = 0;
 
         updateButtons();
@@ -80,10 +107,10 @@
 
         prevButton.addEventListener('click', () => {
             steps[currentStep].classList
-                                    .remove('active');
+                .remove('active');
             currentStep--;
             steps[currentStep].classList
-                                    .add('active');
+                .add('active');
             updateButtons();
         });
 
@@ -91,6 +118,18 @@
             if (!validateForm()) {
                 event.preventDefault();
             }
+        });
+
+        handScoreTotals.forEach(handScoreTotal => {
+            handScoreTotal.addEventListener('input', () => {
+                updateHandTotal(handScoreTotal);
+            });
+        });
+
+        handBolterTotals.forEach(handBolterTotal => {
+            handBolterTotal.addEventListener('input', () => {
+                updateHandTotal(handBolterTotal);
+            });
         });
 
         function validateForm() {
@@ -115,12 +154,47 @@
             if (currentStep === steps.length - 1) {
                 nextButton.style.display = 'none';
                 form.querySelector('button[type="submit"]')
-                          .style.display = 'inline-block';
+                    .style.display = 'inline-block';
             } else {
                 nextButton.style.display = 'inline-block';
                 form.querySelector('button[type="submit"]')
-                          .style.display = 'none';
+                    .style.display = 'none';
             }
+        }
+
+        function updateHandTotal(handTotal) {
+            // get the hand number
+            const handNumber = handTotal.classList[2].replace('hand', '');
+
+            // get all the scores and bolters for that hand
+            const handScores = form.querySelectorAll(`.input.score.hand${handNumber}`);
+            const handBolters = form.querySelectorAll(`.input.bolters.hand${handNumber}`);
+
+            // get the hand total label.
+            const handScoreTotalLabel = form.querySelector(`.hand-total.score.hand${handNumber}`);
+            const handBolterTotalLabel = form.querySelector(`.hand-total.bolters.hand${handNumber}`);
+
+            // update the label text as the sum of the inputs.
+            // handTotalLabel.textContent = parseInt(handScoreTotal.value) + parseInt(handBolterTotal.value);
+
+            let scoreTotal = 0;
+            let bolterTotal = 0;
+
+            handScores.forEach(handScore => {
+                if (parseInt(handScore.value)) {
+                    scoreTotal += parseInt(handScore.value);
+                }
+            });
+
+            handBolters.forEach(handBolter => {
+                if (parseInt(handBolter.value)) {
+                    bolterTotal += parseInt(handBolter.value);
+                }
+            });
+
+            handScoreTotalLabel.textContent = scoreTotal;
+            handBolterTotalLabel.textContent = bolterTotal;
+
         }
     });
 </script>
