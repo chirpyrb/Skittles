@@ -8,7 +8,7 @@ const bcrypt = require('bcrypt')
 
 router.get('/', (req, res) => {
     console.log(req.user)
-    res.render('users/welcome', {Users: req.user})
+    res.render('users/welcome', { Users: req.user })
 })
 
 router.get('/register', async (req, res) => {
@@ -20,11 +20,10 @@ router.post('/register', async (req, res) => {
     const password = req.body.password
 
     // Check if username already exists.
-    let userList = await SQ3.fetchFirst(SQ3.db, 'SELECT * FROM Users WHERE userName = ?', userName)
-    if (userList == null){
+    let userList = await auth.usernameExists(userName)
+    if (userList == false) {
         // New User
-        const hashedPassword = await bcrypt.hash(password, 10)
-        await SQ3.execute(SQ3.db, 'INSERT INTO Users(userName, password, access) VALUES (?,?,?)', [userName, hashedPassword, "dev"])
+        await auth.addUser({ userName, password, access: "dev" })
         res.render('users/registrationSuccess')
     } else {
         res.send(req.body.userName + req.body.password)
@@ -40,7 +39,7 @@ router.get('/login', async (req, res) => {
 router.post('/login', async (req, res) => {
 
     // Get the credentials from the form.
-    const {userName, password} = req.body;
+    const { userName, password } = req.body;
 
     // Check the username is valid
     if (auth.usernameExists(userName)) {
@@ -48,21 +47,25 @@ router.post('/login', async (req, res) => {
         console.log(user)
         if (user != null) {
             req.session.user = user
-            req.session.save()
             if (req.session.returnTo != null) {
-                res.redirect(req.session.returnTo)
+                const returnUrl = req.session.returnTo
                 req.session.returnTo = null
-                req.session.save()
-                return
+                req.session.save(() => {
+                    res.redirect(returnUrl)
+                })
+            } else {
+                req.session.save(() => {
+                    res.redirect('/')
+                })
             }
+            return
         } else {
             res.send('Authentication failed')
-            res.redirect('/')
         }
     } else {
         res.send('Username not found')
     }
-    
+
 })
 
 module.exports = router

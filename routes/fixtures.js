@@ -10,15 +10,15 @@ router.get('/', async (req, res) => {
     try {
         const fixtureList = await fixture.getAllFixtures()
         if (fixtureList != null) {
-            res.render('fixtures/index', {user: req.session.user, fixtureList: fixtureList})
-        } else{
+            res.render('fixtures/index', { user: req.session.user, fixtureList: fixtureList })
+        } else {
             res.render('fixtures/index')
         }
     } catch (err) {
         console.error(err)
         res.redirect('/')
     }
-    
+
 })
 
 router.get('/scorecard', async (req, res) => {
@@ -27,7 +27,7 @@ router.get('/scorecard', async (req, res) => {
         const gameStatus = await fixture.getFixtureStatus(req.query.gameid)
         const gameInfo = await fixture.getFixtureInfo(req.query.gameid)
         // const homeTeamPlayerList = await SQ3.fetchAll(SQ3.db, 'SELECT * FROM Players INNER JOIN Teams')
-        res.render('fixtures/gameSummary', {gameInfo: gameInfo, user: req.user})
+        res.render('fixtures/gameSummary', { gameInfo: gameInfo, user: req.user })
     } else {
         res.send('Game ID error')
     }
@@ -48,20 +48,23 @@ router.get('/live', async (req, res) => {
             const scorecardInfo = {
                 playerList: players
             }
-            res.render('fixtures/_scorecard', {scoreCardInfo: scorecardInfo})
+            res.render('fixtures/_scorecard', { scoreCardInfo: scorecardInfo })
         }
 
-        
+
     } else {
-        res.render('fixtures/gameSummary', {gameInfo: gameInfo, user: req.user})
+        res.render('fixtures/gameSummary', { gameInfo: gameInfo, user: req.user })
     }
 })
 
+const team = require('../models/team')
+const competition = require('../models/competition')
+
 // New fixture
 router.get('/new', async (req, res) => {
-    const teamList = await SQ3.fetchAll(db, 'SELECT * FROM Teams')
-    const compList = await SQ3.fetchAll(db, 'SELECT * FROM Competitions')
-    res.render('fixtures/new', {teamList: teamList, compList: compList})
+    const teamList = await team.getAllTeams()
+    const compList = await competition.getAllCompetitions()
+    res.render('fixtures/new', { teamList: teamList, compList: compList })
 })
 
 router.post('/', async (req, res) => {
@@ -71,7 +74,7 @@ router.post('/', async (req, res) => {
     const comp = req.body.comp
     console.log(homeTeam, awayTeam, matchDate)
     try {
-        await SQ3.execute(db, 'INSERT INTO Fixtures(homeTeam,awayTeam,matchDate,competition) VALUES (?,?,?,?);', [homeTeam, awayTeam, matchDate, comp])
+        await fixture.createFixture(homeTeam, awayTeam, matchDate, comp)
         res.redirect('/fixtures')
     } catch (err) {
         console.error(err)
@@ -96,7 +99,7 @@ router.get('/scorecard/new', async (req, res) => {
         res.redirect('/users/login')
         return
     }
-  
+
     // Check that the User hasn't started a fixture already.
     if (req.session.user.gamesInProgress == null) {
         // No fixtures in progress, so they haven't started this one.
@@ -128,7 +131,7 @@ router.get('/scorecard/new', async (req, res) => {
     } else {
     }
     // Show the set team page.
-    res.render('fixtures/scorecard', {fixtureInfo: fixtureInfo, playerList: awaysquad})
+    res.render('fixtures/scorecard', { fixtureInfo: fixtureInfo, playerList: awaysquad })
 })
 
 router.get('/scorecard/new/team', async (req, res) => {
@@ -143,11 +146,11 @@ router.get('/scorecard/new/team', async (req, res) => {
         console.log("User doesn't have a game in progress")
         res.redirect('/fixtures')
         return
-    }   
+    }
 
     // Get the player list for the user's team.
     const teamList = await player.getPlayerListForTeam(req.session.user.Team)
-    res.render('fixtures/scorecard/setTeam', {playerList: teamList})
+    res.render('fixtures/scorecard/setTeam', { playerList: teamList })
 })
 
 router.post('/scorecard/new/team', async (req, res) => {
@@ -160,7 +163,13 @@ router.post('/scorecard/new/team', async (req, res) => {
     req.session.teamSheet = req.body.player
     req.session.save()
 
-    res.render('fixtures/scorecard', {teamSheet: req.session.teamSheet})
+    const allPlayers = await player.getPlayerListForTeam(req.session.user.Team)
+    const mappedPlayers = req.session.teamSheet.map(id => {
+        if (id === 'null' || !id) return { alias: 'Empty' }
+        return allPlayers.find(p => p.id == id) || { alias: 'Unknown' }
+    })
+
+    res.render('fixtures/scorecard', { teamSheet: req.session.teamSheet, players: mappedPlayers })
 })
 
 router.post('/scorecard', async (req, res) => {
@@ -171,7 +180,7 @@ router.post('/scorecard', async (req, res) => {
 router.post('/scorecard/team', async (req, res) => {
 
     // Submit the team sheet before starting the fixture.
-    
+
 })
 
 module.exports = router

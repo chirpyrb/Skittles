@@ -14,8 +14,13 @@ async function searchPubList(pubName) {
     return await SQ3.fetchAll(SQ3.db, 'SELECT * FROM Pubs WHERE name=?;', pubName)
 }
 
+async function createPub(newPubName) {
+    return await SQ3.execute(SQ3.db, 'INSERT INTO Pubs(name) VALUES(?)', [newPubName])
+}
+
 module.exports = {
     initTable,
     getAllPubs,
-    searchPubList
+    searchPubList,
+    createPub
 }

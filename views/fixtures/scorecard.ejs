@@ -2,8 +2,9 @@
     <div id="Hand-1" class="step active">
         <div>
             <h2>Hand 1</h2>
-            <% for (let i=0; i < 7; i++) { %>
-                <%- include('scorecard/_handEntry.ejs', {handNumber: 1})%>
+            <% for (let i=0; i < 8; i++) { %>
+                <%- include('scorecard/_handEntry.ejs', {handNumber: 1, player: players[i] || { alias: 'Empty' },
+                    playerIndex: i})%>
                     <% } %>
         </div>
         <div>
@@ -13,8 +14,9 @@
     </div>
     <div id="Hand-2" class="step">
         <h2>Hand 2</h2>
-        <% for (let i=0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 2})%>
+        <% for (let i=0; i < 8; i++) { %>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 2, player: players[i] || { alias: 'Empty' },
+                playerIndex: i})%>
                 <% } %>
                     <div>
                         <span class="hand-total score hand-2">0</span>
@@ -23,8 +25,9 @@
     </div>
     <div id="Hand-3" class="step">
         <h2>Hand 3</h2>
-        <% for (let i=0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 3})%>
+        <% for (let i=0; i < 8; i++) { %>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 3, player: players[i] || { alias: 'Empty' },
+                playerIndex: i})%>
                 <% } %>
                     <div>
                         <span class="hand-total score hand-3">0</span>
@@ -33,8 +36,9 @@
     </div>
     <div id="Hand-4" class="step">
         <h2>Hand 4</h2>
-        <% for (let i=0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 4})%>
+        <% for (let i=0; i < 8; i++) { %>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 4, player: players[i] || { alias: 'Empty' },
+                playerIndex: i})%>
                 <% } %>
                     <div>
                         <span class="hand-total score hand-4">0</span>
@@ -43,8 +47,9 @@
     </div>
     <div id="Hand-5" class="step">
         <h2>Hand 5</h2>
-        <% for (let i=0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 5})%>
+        <% for (let i=0; i < 8; i++) { %>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 5, player: players[i] || { alias: 'Empty' },
+                playerIndex: i})%>
                 <% } %>
                     <div>
                         <span class="hand-total score hand-5">0</span>
@@ -53,8 +58,9 @@
     </div>
     <div id="Hand-6" class="step">
         <h2>Hand 6</h2>
-        <% for (let i=0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 6})%>
+        <% for (let i=0; i < 8; i++) { %>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 6, player: players[i] || { alias: 'Empty' },
+                playerIndex: i})%>
                 <% } %>
                     <div>
                         <span class="hand-total score hand-6">0</span>
@@ -63,8 +69,9 @@
     </div>
     <div id="Hand-7" class="step">
         <h2>Hand 7</h2>
-        <% for (let i=0; i < 7; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 7})%>
+        <% for (let i=0; i < 8; i++) { %>
+            <%- include('scorecard/_handEntry.ejs', {handNumber: 7, player: players[i] || { alias: 'Empty' },
+                playerIndex: i})%>
                 <% } %>
                     <div>
                         <span class="hand-total score hand-7">0</span>

@@ -38,7 +38,7 @@ async function getFixtureInfo(id) {
         WHERE Fixtures.id = ?;",
         id)
     return fixtureInfo
-    
+
 }
 
 async function beginGame(gameid, userid) {
@@ -77,7 +77,11 @@ async function beginGame(gameid, userid) {
         return true
     } catch (e) {
         return e
-    }    
+    }
+}
+
+async function createFixture(homeTeam, awayTeam, matchDate, comp) {
+    return await SQ3.execute(SQ3.db, 'INSERT INTO Fixtures(homeTeam,awayTeam,matchDate,competition) VALUES (?,?,?,?);', [homeTeam, awayTeam, matchDate, comp])
 }
 
 
@@ -87,5 +91,6 @@ module.exports = {
     getAllFixtures,
     getFixtureStatus,
     getFixtureInfo,
-    beginGame
+    beginGame,
+    createFixture
 }

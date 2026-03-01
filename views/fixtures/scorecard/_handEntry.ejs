@@ -7,10 +7,11 @@
     </div>
     <div>
         <span>
-            <input type="number" class="input score hand-<%= handNumber %>" name="score<%= handNumber %>"
-                id="score<%= handNumber %>">
-            <input type="number" class="input bolters hand-<%= handNumber %>" name="bolters<%= handNumber %>"
-                id="bolters<%= handNumber %>">
+            <%= player.alias %>
+                <input type="number" class="input score hand-<%= handNumber %>"
+                    name="score<%= handNumber %>_<%= playerIndex %>" id="score<%= handNumber %>_<%= playerIndex %>">
+                <input type="number" class="input bolters hand-<%= handNumber %>"
+                    name="bolters<%= handNumber %>_<%= playerIndex %>" id="bolters<%= handNumber %>_<%= playerIndex %>">
         </span>
     </div>
 </div>
