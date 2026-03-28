@@ -1,0 +1,16 @@
+<h2>Link your account to a player profile</h2>
+<form action="/users/link" method="POST">
+    <div>
+        <label for="playerId">Select Player</label>
+        <select name="playerId" id="playerId">
+            <% players.forEach(p=> { %>
+                <option value="<%= p.id %>" <%=user && user.playerId===p.id ? 'selected' : '' %>>
+                    <%= p.firstName %> "<%= p.alias %>" <%= p.secondName %>
+                                <% if(p.teamName) { %> (<%= p.teamName %>) <% } %>
+                </option>
+                <% }) %>
+        </select>
+    </div>
+    <br>
+    <button class="btn" type="submit">Link Account</button>
+</form>

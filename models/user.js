@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt')
 
 // Init 
 async function initUserDatabase(params) {
-    SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS Users (id INTEGER PRIMARY KEY, userName TEXT NOT NULL, password TEXT NOT NULL, access TEXT NOT NULL)')
+    SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS Users (id INTEGER PRIMARY KEY, userName TEXT NOT NULL, password TEXT NOT NULL, access TEXT NOT NULL, playerId INTEGER REFERENCES Players(id))')
 }
 
 // Core functions
@@ -70,11 +70,28 @@ async function userPermissions(username, role) {
     }
 }
 
+async function linkPlayerToUser(username, playerId) {
+    console.log(`Linking user ${username} to player ID ${playerId}`)
+    try {
+        await SQ3.execute(SQ3.db, 'UPDATE Users SET playerId = ? WHERE userName = ?', [playerId, username])
+        return true
+    } catch (err) {
+        console.error(err)
+        return false
+    }
+}
+
+async function getPlayerForUser(username) {
+    return await SQ3.fetchFirst(SQ3.db, 'SELECT P.*, T.teamName FROM Users U JOIN Players P ON U.playerId = P.id LEFT JOIN Teams T ON P.team = T.id WHERE U.userName = ?', username)
+}
+
 // Export things, maybe only the middleware? What about new users?
 module.exports = {
     initUserDatabase,
     usernameExists,
     addUser,
     authenticateUser,
-    userPermissions
+    userPermissions,
+    linkPlayerToUser,
+    getPlayerForUser
 }

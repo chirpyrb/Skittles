@@ -16,8 +16,7 @@ async function initTable() {
 
 async function getAllFixtures() {
     // Returns a list of all fixtures.
-    // Probably want to filter this at some point.
-    const fixtureList = await SQ3.fetchAll(SQ3.db, "SELECT Fixtures.id, Home.teamName AS homeTeam, Away.teamName AS awayTeam, matchDate, competition FROM Fixtures INNER JOIN Teams Home ON Home.id = Fixtures.homeTeam INNER JOIN Teams Away ON Away.id = Fixtures.awayTeam;")
+    const fixtureList = await SQ3.fetchAll(SQ3.db, "SELECT Fixtures.id, Fixtures.status, Home.id as homeTeamID, Away.id as awayTeamID, Home.teamName AS homeTeam, Away.teamName AS awayTeam, matchDate, competition FROM Fixtures INNER JOIN Teams Home ON Home.id = Fixtures.homeTeam INNER JOIN Teams Away ON Away.id = Fixtures.awayTeam;")
     return fixtureList
 }
 
@@ -83,8 +82,115 @@ async function beginGame(gameid, userid) {
 async function createFixture(homeTeam, awayTeam, matchDate, comp) {
     return await SQ3.execute(SQ3.db, 'INSERT INTO Fixtures(homeTeam,awayTeam,matchDate,competition) VALUES (?,?,?,?);', [homeTeam, awayTeam, matchDate, comp])
 }
+async function saveTempScore(gameid, userid, hand, teamid, playerid, position, score, bolters) {
+    const tableName = `temptable_scores${gameid}_user${userid}`;
 
+    // Ensure table exists just in case
+    await SQ3.execute(SQ3.db,
+        `CREATE TABLE IF NOT EXISTS ${tableName} \
+        (id INTEGER PRIMARY KEY, \
+        Fixture INTEGER, \
+        Hand INTEGER, \
+        Team INTEGER, \
+        Player INTEGER, \
+        Position INTEGER, \
+        Score INTEGER, \
+        Bolters INTEGER, \
+        isSquare INTEGER, \
+        isFlopper INTEGER, \
+        isChance INTEGER)`)
 
+    const existing = await SQ3.fetchFirst(SQ3.db, `SELECT id FROM ${tableName} WHERE Hand = ? AND Position = ?`, [hand, position]);
+    if (existing) {
+        await SQ3.execute(SQ3.db, `UPDATE ${tableName} SET Player = ?, Score = ?, Bolters = ? WHERE id = ?`, [playerid, score, bolters, existing.id]);
+    } else {
+        await SQ3.execute(SQ3.db, `INSERT INTO ${tableName} (Fixture, Hand, Team, Player, Position, Score, Bolters) VALUES (?, ?, ?, ?, ?, ?, ?)`, [gameid, hand, teamid, playerid, position, score, bolters]);
+    }
+}
+
+async function getAllScoresForFixture(gameid) {
+    // Finds all temp score tables for a given game ID and aggregates the scores.
+    const tables = await SQ3.fetchAll(SQ3.db, `SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'temptable\\_scores${gameid}\\_user%' ESCAPE '\\'`);
+    let allScores = [];
+    if (tables) {
+        for (const table of tables) {
+            const scores = await SQ3.fetchAll(SQ3.db, `
+                SELECT s.*, p.alias as playerName, t.teamName 
+                FROM ${table.name} s 
+                LEFT JOIN Players p ON s.Player = p.id
+                LEFT JOIN Teams t ON s.Team = t.id
+                ORDER BY s.Hand ASC, s.Position ASC
+            `);
+            if (scores && scores.length) {
+                allScores = allScores.concat(scores);
+            }
+        }
+    }
+    return allScores;
+}
+
+async function importFixturesFromCSV(csvFilePath, compID = 1) {
+    const fs = require('fs');
+    const teamModel = require('./team');
+    
+    if (!fs.existsSync(csvFilePath)) {
+        console.error("CSV file not found:", csvFilePath);
+        return 0;
+    }
+
+    const fileContent = fs.readFileSync(csvFilePath, 'utf8');
+    const lines = fileContent.split(/\r?\n/);
+
+    let count = 0;
+    for (const line of lines) {
+        if (!line.trim()) continue;
+        
+        // Simple CSV splitter
+        const cols = line.split(',');
+        if (cols.length < 3) continue;
+
+        let matchDate = cols[0].replace(/['"]/g, '').trim();
+        let homeTeamName = cols[1].replace(/['"]/g, '').trim();
+        let awayTeamName = cols[2].replace(/['"]/g, '').trim();
+
+        // Skip potential header row
+        if (matchDate.toLowerCase() === 'date' || matchDate.toLowerCase().includes('monday') || matchDate.toLowerCase().includes('date')) {
+            continue;
+        }
+
+        let homeTeamRow = await teamModel.getTeamIdByName(homeTeamName);
+        let awayTeamRow = await teamModel.getTeamIdByName(awayTeamName);
+
+        if (homeTeamRow && awayTeamRow) {
+            let finalMatchDate = matchDate;
+            try {
+                // Lookup home team's play night (Monday = 1, Tuesday = 2, ..., Sunday = 7)
+                const nightRow = await teamModel.getTeamHomeNight(homeTeamRow.id);
+                if (nightRow && nightRow.home_night) {
+                    const daysToAdd = parseInt(nightRow.home_night) - 1;
+                    if (daysToAdd >= 0) {
+                        // Parse the CSV date (assumed to be a Monday)
+                        const dateObj = new Date(matchDate);
+                        if (!isNaN(dateObj.getTime())) {
+                            dateObj.setDate(dateObj.getDate() + daysToAdd);
+                            // Format back to YYYY-MM-DD
+                            finalMatchDate = dateObj.toISOString().split('T')[0];
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Error calculating match date:", err);
+            }
+
+            await createFixture(homeTeamRow.id, awayTeamRow.id, finalMatchDate, compID);
+            count++;
+        } else {
+            console.warn(`Could not find one or both teams for fixture: ${homeTeamName} vs ${awayTeamName}`);
+        }
+    }
+    console.log(`Successfully imported ${count} fixtures from ${csvFilePath}.`);
+    return count;
+}
 
 module.exports = {
     initTable,
@@ -92,5 +198,8 @@ module.exports = {
     getFixtureStatus,
     getFixtureInfo,
     beginGame,
-    createFixture
+    createFixture,
+    saveTempScore,
+    getAllScoresForFixture,
+    importFixturesFromCSV
 }

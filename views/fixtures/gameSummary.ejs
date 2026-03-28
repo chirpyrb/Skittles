@@ -1,17 +1,24 @@
-
 <div>
     <div>
-        <span><%=gameInfo.matchDate%></span>
-        <span><%=gameInfo.Comp%> Season</span>
+        <span>
+            <%=gameInfo.matchDate%>
+        </span>
+        <span>
+            <%=gameInfo.Comp%> Season
+        </span>
     </div>
     <div>
-        <span><%=gameInfo.homeTeam%></span>
+        <span>
+            <%=gameInfo.homeTeam%>
+        </span>
         <span>Home Crest</span>
         <span>Home score</span>
         <span>V</span>
         <span>Away score</span>
         <span>Away Crest</span>
-        <span><%=gameInfo.awayTeam%></span>
+        <span>
+            <%=gameInfo.awayTeam%>
+        </span>
     </div>
     <div>
         <span>Venue: venue</span>
@@ -21,8 +28,12 @@
     <nav>
         <li>Teams</li>
         <div>
-            <li><%=gameInfo.homeTeam%></li>
-            <li><%=gameInfo.awayTeam%></li>
+            <li>
+                <%=gameInfo.homeTeam%>
+            </li>
+            <li>
+                <%=gameInfo.awayTeam%>
+            </li>
         </div>
         <li>Table</li>
         <li>Head-to-head</li>
@@ -30,9 +41,68 @@
     </nav>
 </div>
 <div>
-    <% if (gameInfo.id == "live") { %>
+    <% if (gameInfo.id=="live" ) { %>
 
-    <% } else { %>
-        <a href="/fixtures/scorecard/new?gameid=<%=gameInfo.id%>">Begin game</a>
-    <% } %>
+        <% } else { %>
+            <a href="/fixtures/scorecard/new?gameid=<%=gameInfo.id%>">Begin game</a>
+            <% } %>
+</div>
+<div>
+    <% if (typeof scores !=='undefined' && scores && scores.length> 0) { %>
+        <h3>Provisional/Live Scores</h3>
+        <table border="1" cellpadding="5" cellspacing="0">
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th>Hand 1</th>
+                    <th>Hand 2</th>
+                    <th>Hand 3</th>
+                    <th>Hand 4</th>
+                    <th>Hand 5</th>
+                    <th>Hand 6</th>
+                    <th>Hand 7</th>
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% for(let s of scores) { %>
+                    <tr>
+                        <td>
+                            <strong>
+                                <%= s.playerName %>
+                            </strong><br><small>(<%= s.teamName %>)</small>
+                        </td>
+                        <td>
+                            <%= s.hands[0] %>
+                        </td>
+                        <td>
+                            <%= s.hands[1] %>
+                        </td>
+                        <td>
+                            <%= s.hands[2] %>
+                        </td>
+                        <td>
+                            <%= s.hands[3] %>
+                        </td>
+                        <td>
+                            <%= s.hands[4] %>
+                        </td>
+                        <td>
+                            <%= s.hands[5] %>
+                        </td>
+                        <td>
+                            <%= s.hands[6] %>
+                        </td>
+                        <td>
+                            <strong>
+                                <%= s.total %>
+                            </strong>
+                        </td>
+                    </tr>
+                    <% } %>
+            </tbody>
+        </table>
+        <% } else { %>
+            <p>No scores have been registered yet.</p>
+            <% } %>
 </div>

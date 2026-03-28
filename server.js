@@ -31,6 +31,7 @@ app.set('layout', 'layouts/layout')
 app.use(expressLayouts)
 app.use(express.static('public'))
 app.use(bodyParser.urlencoded({ limit: '10mb', extended: false }))
+app.use(bodyParser.json())
 
 // Use the auth
 app.use(session({
@@ -38,6 +39,8 @@ app.use(session({
     resave: false,
     saveUninitialized: false
 }))
+
+app.get('/health', (req, res) => res.status(200).send('ok'))
 
 // Protection middleware for all routes
 app.use((req, res, next) => {
@@ -53,7 +56,13 @@ app.use((req, res, next) => {
     }
 
     // Save the URL they were trying to visit and redirect
-    req.session.returnTo = req.originalUrl
+    if (req.originalUrl === '/') {
+        req.session.returnTo = '/'
+    } else {
+        req.session.returnTo = req.originalUrl
+    }
+    console.log('Previous URL: ')
+    console.log(req.session.returnTo)
     res.redirect('/users/login')
 })
 
@@ -76,6 +85,24 @@ app.use('/players', playerRouter)
 app.use('/competitions', seasonsRouter)
 app.use('/fixtures', fixtureRouter)
 app.use('/users', require('./routes/users'))
+
+// Initialize all model database tables
+const path = require('path')
+const modelsPath = path.join(__dirname, 'models')
+fs.readdirSync(modelsPath).forEach(file => {
+    if (file.endsWith('.js') && file !== 'sql.js') {
+        try {
+            const model = require(path.join(modelsPath, file))
+            // Find and call any exported function that begins with 'init'
+            const initFnName = Object.keys(model).find(k => k.startsWith('init'))
+            if (initFnName && typeof model[initFnName] === 'function') {
+                model[initFnName]().catch(err => console.error(`Error initializing table in ${file}:`, err))
+            }
+        } catch (err) {
+            console.error(`Failed to load or init model ${file}:`, err)
+        }
+    }
+})
 
 https.createServer(secOpts, app).listen(process.env.PORT, () => {
     console.log(`HTTPS Server running on https://localhost:${process.env.PORT}`)

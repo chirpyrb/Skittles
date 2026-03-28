@@ -9,16 +9,42 @@ const player = require('../models/player.js')
 router.get('/', async (req, res) => {
     try {
         const fixtureList = await fixture.getAllFixtures()
+        console.log(fixtureList)
+        const groupedFixtures = {}
         if (fixtureList != null) {
-            res.render('fixtures/index', { user: req.session.user, fixtureList: fixtureList })
+            for (let f of fixtureList) {
+                const date = f.matchDate || 'Unscheduled'
+                if (!groupedFixtures[date]) {
+                    groupedFixtures[date] = []
+                }
+
+                // If game has started (status is not null)
+                if (f.status != null) {
+                    const allScores = await fixture.getAllScoresForFixture(f.id)
+                    f.homeScore = 0
+                    f.awayScore = 0
+                    for (const s of (allScores || [])) {
+                        if (s.Team == f.homeTeamID) {
+                            f.homeScore += parseInt(s.Score) || 0
+                        } else if (s.Team == f.awayTeamID) {
+                            f.awayScore += parseInt(s.Score) || 0
+                        }
+                    }
+                }
+
+                groupedFixtures[date].push(f)
+            }
+
+            // Optionally sort the keys to display them in chronological order
+            // If matchDate is YYYY-MM-DD, a simple text sort works
+            res.render('fixtures/index', { user: req.session.user, groupedFixtures: groupedFixtures })
         } else {
-            res.render('fixtures/index')
+            res.render('fixtures/index', { groupedFixtures: {} })
         }
     } catch (err) {
         console.error(err)
         res.redirect('/')
     }
-
 })
 
 router.get('/scorecard', async (req, res) => {
@@ -26,8 +52,40 @@ router.get('/scorecard', async (req, res) => {
         // Lookup the status of this game.
         const gameStatus = await fixture.getFixtureStatus(req.query.gameid)
         const gameInfo = await fixture.getFixtureInfo(req.query.gameid)
-        // const homeTeamPlayerList = await SQ3.fetchAll(SQ3.db, 'SELECT * FROM Players INNER JOIN Teams')
-        res.render('fixtures/gameSummary', { gameInfo: gameInfo, user: req.user })
+
+        // Fetch provisional/saved scores across all hands and users for this game
+        const allScores = await fixture.getAllScoresForFixture(req.query.gameid)
+
+        const playerScores = {};
+        for (const s of (allScores || [])) {
+            const key = `${s.Team}_${s.Position}`;
+            if (!playerScores[key]) {
+                playerScores[key] = {
+                    teamName: s.teamName,
+                    playerName: s.playerName || 'Empty/Unknown',
+                    Position: s.Position,
+                    hands: [0, 0, 0, 0, 0, 0, 0],
+                    total: 0
+                };
+            }
+            const score = parseInt(s.Score) || 0;
+            // Hands should be 1-indexed up to 7, check boundary just in case
+            if (s.Hand >= 1 && s.Hand <= 7) {
+                playerScores[key].hands[s.Hand - 1] = score;
+            }
+            playerScores[key].total += score;
+        }
+
+        const groupedScores = Object.values(playerScores);
+        // Sort by Team then Position
+        groupedScores.sort((a, b) => {
+            if (a.teamName !== b.teamName) {
+                return (a.teamName || '').localeCompare(b.teamName || '');
+            }
+            return a.Position - b.Position;
+        });
+
+        res.render('fixtures/gameSummary', { gameInfo: gameInfo, user: req.user, scores: groupedScores })
     } else {
         res.send('Game ID error')
     }
@@ -181,6 +239,31 @@ router.post('/scorecard/team', async (req, res) => {
 
     // Submit the team sheet before starting the fixture.
 
+})
+
+router.post('/scorecard/entry', async (req, res) => {
+    // Save an individual entry to the temporary table
+    if (!req.session.user || !req.session.user.gamesInProgress) {
+        return res.status(401).send("Unauthorized");
+    }
+
+    try {
+        const gameid = req.session.user.gamesInProgress;
+        const userid = req.session.user.id || req.user.id;
+        const teamid = req.session.user.Team;
+        const { handNumber, playerIndex, score, bolters } = req.body;
+
+        let playerId = null;
+        if (req.session.teamSheet && req.session.teamSheet[playerIndex]) {
+            playerId = req.session.teamSheet[playerIndex] === 'null' ? null : parseInt(req.session.teamSheet[playerIndex]);
+        }
+
+        await fixture.saveTempScore(gameid, userid, handNumber, teamid, playerId, playerIndex, score || 0, bolters || 0);
+        res.status(200).send("Saved");
+    } catch (err) {
+        console.error("Error saving score", err);
+        res.status(500).send("Error");
+    }
 })
 
 module.exports = router

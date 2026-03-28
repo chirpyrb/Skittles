@@ -1,0 +1,102 @@
+<h2>User Profile</h2>
+
+<div class="user-details">
+    <h3>User Details</h3>
+    <p><strong>Username:</strong> <%= user.userName %></p>
+    <p><strong>Access Level:</strong> <%= user.access %></p>
+</div>
+
+<div class="linked-player-details">
+    <h3>Linked Player Details</h3>
+    <% if (linkedPlayer) { %>
+        <p><strong>Name:</strong> <%= linkedPlayer.firstName %> <%= linkedPlayer.secondName %></p>
+        <p><strong>Alias:</strong> <%= linkedPlayer.alias %></p>
+        <% if (linkedPlayer.teamName) { %>
+            <p><strong>Team:</strong> <%= linkedPlayer.teamName %></p>
+            <% if (team) { %>
+                <p><strong>Captain Status:</strong>
+                <% if (team.captainId === user.id) { %>
+                    <span style="color: green; font-weight: bold;">You are the Team Captain</span>
+                <% } else if (team.captainId != null) { %>
+                    <span style="color: gray;">Team already has a Captain</span>
+                <% } else { %>
+                    <span>No captain yet</span>
+                    <form action="/users/captain" method="POST" style="display:inline-block; margin-left: 10px;">
+                        <button class="btn" type="submit">Become Captain</button>
+                    </form>
+                <% } %>
+                </p>
+            <% } %>
+        <% } %>
+    <% } else { %>
+        <p>No player profile linked.</p>
+    <% } %>
+</div>
+
+<hr>
+
+<% if (!linkedPlayer) { %>
+    <h2>Link your account to a player profile</h2>
+    <form action="/users/link" method="POST">
+        <div>
+            <label for="playerId">Select Player</label>
+            <input type="text" id="playerSearch" placeholder="Search by name or team..." autocomplete="off">
+            <select name="playerId" id="playerId">
+                <% players.forEach(p=> { %>
+                    <option value="<%= p.id %>" <%=user && user.playerId===p.id ? 'selected' : '' %>>
+                        <%= p.firstName %> "<%= p.alias %>" <%= p.secondName %>
+                                    <% if(p.teamName) { %> (<%= p.teamName %>) <% } %>
+                    </option>
+                    <% }) %>
+            </select>
+        </div>
+        <br>
+        <button class="btn" type="submit">Link Account</button>
+    </form>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const searchInput = document.getElementById('playerSearch');
+            const select = document.getElementById('playerId');
+            const originalOptions = Array.from(select.options);
+
+            searchInput.addEventListener('input', function () {
+                const filter = this.value.toLowerCase();
+                
+                select.innerHTML = '';
+                
+                let hasSelected = false;
+                originalOptions.forEach(function (option) {
+                    if (option.text.toLowerCase().includes(filter)) {
+                        select.appendChild(option);
+                        if (option.selected) hasSelected = true;
+                    }
+                });
+                
+                if (!hasSelected && select.options.length > 0) {
+                    select.selectedIndex = 0;
+                }
+            });
+        });
+    </script>
+<% } else { %>
+    <h2>Edit Player Details</h2>
+    <form action="/users/profile/edit" method="POST">
+        <div>
+            <label for="firstName">First Name</label>
+            <input type="text" name="firstName" id="firstName" value="<%= linkedPlayer.firstName %>" required>
+        </div>
+        <br>
+        <div>
+            <label for="secondName">Second Name</label>
+            <input type="text" name="secondName" id="secondName" value="<%= linkedPlayer.secondName %>" required>
+        </div>
+        <br>
+        <div>
+            <label for="alias">Alias</label>
+            <input type="text" name="alias" id="alias" value="<%= linkedPlayer.alias %>" required>
+        </div>
+        <br>
+        <button class="btn" type="submit">Update Details</button>
+    </form>
+<% } %>

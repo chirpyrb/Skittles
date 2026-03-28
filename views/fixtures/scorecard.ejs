@@ -102,6 +102,7 @@
         let currentStep = 0;
 
         updateButtons();
+        updateAllPlayerTotals();
 
         nextButton.addEventListener('click', () => {
             if (validateForm()) {
@@ -130,14 +131,47 @@
         handScoreTotals.forEach(handScoreTotal => {
             handScoreTotal.addEventListener('input', () => {
                 updateHandTotal(handScoreTotal);
+                updateAllPlayerTotals();
+            });
+            handScoreTotal.addEventListener('change', () => {
+                saveEntry(handScoreTotal);
             });
         });
 
         handBolterTotals.forEach(handBolterTotal => {
             handBolterTotal.addEventListener('input', () => {
                 updateHandTotal(handBolterTotal);
+                updateAllPlayerTotals();
+            });
+            handBolterTotal.addEventListener('change', () => {
+                saveEntry(handBolterTotal);
             });
         });
+
+        async function saveEntry(inputElement) {
+            const handNumber = inputElement.classList[2].replace('hand-', '');
+            const playerIndexMatch = inputElement.className.match(/player-(\d+)/);
+            const playerIndex = playerIndexMatch ? playerIndexMatch[1] : null;
+            if (playerIndex === null) return;
+
+            const scoreInput = document.getElementById(`score${handNumber}_${playerIndex}`);
+            const boltersInput = document.getElementById(`bolters${handNumber}_${playerIndex}`);
+
+            const data = {
+                handNumber: parseInt(handNumber),
+                playerIndex: parseInt(playerIndex),
+                score: scoreInput ? (parseInt(scoreInput.value) || 0) : 0,
+                bolters: boltersInput ? (parseInt(boltersInput.value) || 0) : 0
+            };
+
+            try {
+                fetch('/fixtures/scorecard/entry', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            } catch (e) { console.error("Error submitting entry:", e); }
+        }
 
         function validateForm() {
             const currentInputs = steps[currentStep].querySelectorAll('input, textarea');
@@ -166,6 +200,23 @@
                 nextButton.style.display = 'inline-block';
                 form.querySelector('button[type="submit"]')
                     .style.display = 'none';
+            }
+        }
+
+        function updateAllPlayerTotals() {
+            for (let playerIndex = 0; playerIndex < 8; playerIndex++) {
+                let runningTotal = 0;
+                for (let handNumber = 1; handNumber <= 7; handNumber++) {
+                    const scoreInput = document.getElementById(`score${handNumber}_${playerIndex}`);
+                    if (scoreInput) {
+                        const scoreVal = parseInt(scoreInput.value) || 0;
+                        runningTotal += scoreVal;
+                        const runningTotalLabel = document.querySelector(`.running-total.player-${playerIndex}.hand-${handNumber}`);
+                        if (runningTotalLabel) {
+                            runningTotalLabel.textContent = runningTotal;
+                        }
+                    }
+                }
             }
         }
 

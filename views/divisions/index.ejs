@@ -1,11 +1,16 @@
 <h2>Divisions directory</h2>
 <br>
 
-<% allDivs.forEach(div => { %>
+<% allDivs.forEach(div=> { %>
     <div>
-        <span><%= div.name %></span>
+        <span>
+            <%= div.name %>
+        </span>
     </div>
-<% }) %>
+    <% }) %>
 
-<br>
-<a href="/divisions/new">Add new division</a>
+        <br>
+        <a href="/divisions/new">Add new division</a>
+
+        <br>
+        <a href="/divisions/createSchedule?id=1">Create division schedule</a>

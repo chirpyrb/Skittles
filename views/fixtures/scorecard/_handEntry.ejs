@@ -3,15 +3,17 @@
         <span>
             <label>Score</label>
             <label>Bolters</label>
+            <label>Total</label>
         </span>
     </div>
     <div>
         <span>
             <%= player.alias %>
-                <input type="number" class="input score hand-<%= handNumber %>"
+                <input type="number" class="input score hand-<%= handNumber %> player-<%= playerIndex %>"
                     name="score<%= handNumber %>_<%= playerIndex %>" id="score<%= handNumber %>_<%= playerIndex %>">
-                <input type="number" class="input bolters hand-<%= handNumber %>"
+                <input type="number" class="input bolters hand-<%= handNumber %> player-<%= playerIndex %>"
                     name="bolters<%= handNumber %>_<%= playerIndex %>" id="bolters<%= handNumber %>_<%= playerIndex %>">
+                <span class="running-total player-<%= playerIndex %> hand-<%= handNumber %>">0</span>
         </span>
     </div>
 </div>

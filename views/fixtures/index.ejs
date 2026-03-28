@@ -1,16 +1,104 @@
+<style>
+    .tab-buttons {
+        margin-bottom: 0;
+        border-bottom: 2px solid #ccc;
+    }
+    .tab-btn {
+        background: #f1f1f1;
+        border: none;
+        outline: none;
+        cursor: pointer;
+        padding: 10px 20px;
+        font-size: 16px;
+        transition: 0.3s;
+        border-radius: 5px 5px 0 0;
+        margin-right: 5px;
+    }
+    .tab-btn:hover {
+        background-color: #ddd;
+    }
+    .tab-btn.active {
+        background-color: #ccc;
+        font-weight: bold;
+    }
+    .tab-content {
+        display: none;
+        padding: 15px;
+        border: 1px solid #ccc;
+        border-top: none;
+        border-radius: 0 0 5px 5px;
+    }
+    .tab-content.active-tab {
+        display: block;
+    }
+</style>
+
 <h2>Fixtures</h2>
 <br>
 
-<% fixtureList.forEach(fixture => { %>
-    <div>
-        <a href="/fixtures/scorecard?gameid=<%=fixture.id%>"> 
-        <span><%= fixture.matchDate %></span>
-        <span><%= fixture.homeTeam %></span>
-        <span><b>vs</b></span>
-        <span><%= fixture.awayTeam %></span>
-        </a>    
-    </div>
-<% }) %>
+<% const dates = Object.keys(groupedFixtures).sort(); %>
 
-<br>
+<% if (dates.length > 0) { %>
+    <div class="tab-buttons">
+        <% dates.forEach((date, i) => { %>
+            <button class="tab-btn <%= i === 0 ? 'active' : '' %>" onclick="openTab(event, 'tab-<%= i %>')">
+                <%= date %>
+            </button>
+        <% }) %>
+    </div>
+
+    <% dates.forEach((date, i) => { %>
+        <div id="tab-<%= i %>" class="tab-content <%= i === 0 ? 'active-tab' : '' %>">
+            <h3><%= date %></h3>
+            <% if (groupedFixtures[date].length === 0) { %>
+                <p>No fixtures scheduled.</p>
+            <% } %>
+            <% groupedFixtures[date].forEach(fixture => { %>
+                <div style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-radius: 5px; border: 1px solid #eee;">
+                    <a href="/fixtures/scorecard?gameid=<%=fixture.id%>" style="text-decoration: none; color: inherit; display: block;"> 
+                        <span style="display: inline-block; width: 40%; text-align: right; font-weight: bold;">
+                            <%= fixture.homeTeam %>
+                            <% if (fixture.status != null) { %> 
+                                <span style="margin-left: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;"><%= fixture.homeScore %></span> 
+                            <% } %>
+                        </span>
+                        <span style="display: inline-block; width: 10%; text-align: center; color: #777;">vs</span>
+                        <span style="display: inline-block; width: 40%; text-align: left; font-weight: bold;">
+                            <% if (fixture.status != null) { %> 
+                                <span style="margin-right: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;"><%= fixture.awayScore %></span> 
+                            <% } %>
+                            <%= fixture.awayTeam %>
+                        </span>
+                    </a>    
+                </div>
+            <% }) %>
+        </div>
+    <% }) %>
+<% } else { %>
+    <p>No fixtures available.</p>
+<% } %>
+
+<script>
+function openTab(evt, tabId) {
+    var i, tabcontent, tablinks;
+    
+    // Hide all tab content
+    tabcontent = document.getElementsByClassName("tab-content");
+    for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].className = tabcontent[i].className.replace(" active-tab", "");
+    }
+    
+    // Remove 'active' class from all buttons
+    tablinks = document.getElementsByClassName("tab-btn");
+    for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+    
+    // Show current tab and add 'active' class to clicked button
+    document.getElementById(tabId).className += " active-tab";
+    evt.currentTarget.className += " active";
+}
+</script>
+
+<br><br>
 <a href="/fixtures/new">Add new fixture</a>

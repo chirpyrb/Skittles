@@ -1,1 +1,14 @@
-Hello
+<h2>Hello <%= Users ? Users.userName : 'Guest' %>!</h2>
+
+<% if (Users && Users.playerId) { %>
+    <p>Your account is successfully linked to your player profile.</p>
+    <% } else if (Users) { %>
+        <p>Your account is not linked to any player profile yet.</p>
+        <% } %>
+
+            <br>
+            <% if (Users) { %>
+                <a href="/users/profile">View Profile / Link Player</a> | <a href="/users/logout">Logout</a>
+            <% } else { %>
+                <a href="/users/login">Login</a> | <a href="/users/register">Register</a>
+            <% } %>

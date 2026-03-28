@@ -28,9 +28,14 @@ async function createPlayer(firstName, secondName, alias, teamID) {
     return await SQ3.execute(SQ3.db, "INSERT INTO Players(firstName,secondName,alias,team) VALUES(?,?,?,?)", [firstName, secondName, alias, teamID])
 }
 
+async function updatePlayer(id, firstName, secondName, alias) {
+    return await SQ3.execute(SQ3.db, "UPDATE Players SET firstName = ?, secondName = ?, alias = ? WHERE id = ?", [firstName, secondName, alias, id])
+}
+
 module.exports = {
     initTable,
     getPlayerListForTeam,
     getPlayersOnTeamByName,
-    createPlayer
+    createPlayer,
+    updatePlayer
 }
