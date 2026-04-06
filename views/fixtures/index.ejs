@@ -36,28 +36,31 @@
 <h2>Fixtures</h2>
 <br>
 
-<% const dates = Object.keys(groupedFixtures).sort(); %>
+<% const monthKeys = Object.keys(groupedFixtures).sort(); %>
 
-<% if (dates.length > 0) { %>
+<% if (monthKeys.length > 0) { %>
     <div class="tab-buttons">
-        <% dates.forEach((date, i) => { %>
+        <% monthKeys.forEach((key, i) => { %>
             <button class="tab-btn <%= i === 0 ? 'active' : '' %>" onclick="openTab(event, 'tab-<%= i %>')">
-                <%= date %>
+                <%= groupedFixtures[key].label %>
             </button>
         <% }) %>
     </div>
 
-    <% dates.forEach((date, i) => { %>
+    <% monthKeys.forEach((key, i) => { %>
         <div id="tab-<%= i %>" class="tab-content <%= i === 0 ? 'active-tab' : '' %>">
-            <h3><%= date %></h3>
-            <% if (groupedFixtures[date].length === 0) { %>
+            <h3><%= groupedFixtures[key].label %></h3>
+            <% const dayKeys = groupedFixtures[key].days ? Object.keys(groupedFixtures[key].days).sort() : []; %>
+            <% if (dayKeys.length === 0) { %>
                 <p>No fixtures scheduled.</p>
             <% } %>
-            <% groupedFixtures[date].forEach(fixture => { %>
-                <div style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-radius: 5px; border: 1px solid #eee;">
-                    <a href="/fixtures/scorecard?gameid=<%=fixture.id%>" style="text-decoration: none; color: inherit; display: block;"> 
-                        <span style="display: inline-block; width: 40%; text-align: right; font-weight: bold;">
-                            <%= fixture.homeTeam %>
+            <% dayKeys.forEach(dayKey => { %>
+                <h4 style="margin-top: 20px; border-bottom: 1px solid #ddd; padding-bottom: 5px; color: #444;"><%= groupedFixtures[key].days[dayKey].displayDate %></h4>
+                <% groupedFixtures[key].days[dayKey].fixtures.forEach(fixture => { %>
+                    <div style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-radius: 5px; border: 1px solid #eee;">
+                        <a href="/fixtures/scorecard?gameid=<%=fixture.id%>" style="text-decoration: none; color: inherit; display: block;"> 
+                            <span style="display: inline-block; width: 40%; text-align: right; font-weight: bold;">
+                                <%= fixture.homeTeam %>
                             <% if (fixture.status != null) { %> 
                                 <span style="margin-left: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;"><%= fixture.homeScore %></span> 
                             <% } %>
@@ -71,6 +74,7 @@
                         </span>
                     </a>    
                 </div>
+                <% }) %>
             <% }) %>
         </div>
     <% }) %>

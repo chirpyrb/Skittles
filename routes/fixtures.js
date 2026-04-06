@@ -8,39 +8,12 @@ const player = require('../models/player.js')
 // Get all fixtures.
 router.get('/', async (req, res) => {
     try {
+        // Get all fixtures.
         const fixtureList = await fixture.getAllFixtures()
-        console.log(fixtureList)
-        const groupedFixtures = {}
-        if (fixtureList != null) {
-            for (let f of fixtureList) {
-                const date = f.matchDate || 'Unscheduled'
-                if (!groupedFixtures[date]) {
-                    groupedFixtures[date] = []
-                }
 
-                // If game has started (status is not null)
-                if (f.status != null) {
-                    const allScores = await fixture.getAllScoresForFixture(f.id)
-                    f.homeScore = 0
-                    f.awayScore = 0
-                    for (const s of (allScores || [])) {
-                        if (s.Team == f.homeTeamID) {
-                            f.homeScore += parseInt(s.Score) || 0
-                        } else if (s.Team == f.awayTeamID) {
-                            f.awayScore += parseInt(s.Score) || 0
-                        }
-                    }
-                }
-
-                groupedFixtures[date].push(f)
-            }
-
-            // Optionally sort the keys to display them in chronological order
-            // If matchDate is YYYY-MM-DD, a simple text sort works
-            res.render('fixtures/index', { user: req.session.user, groupedFixtures: groupedFixtures })
-        } else {
-            res.render('fixtures/index', { groupedFixtures: {} })
-        }
+        // Sort fixtures by date.
+        const groupedFixtures = fixture.groupFixturesByMonth(fixtureList)
+        res.render('fixtures/index', { user: req.session.user, groupedFixtures: groupedFixtures })
     } catch (err) {
         console.error(err)
         res.redirect('/')

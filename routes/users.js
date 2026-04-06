@@ -2,9 +2,7 @@
 const express = require('express')
 const router = express.Router()
 const auth = require('../models/user')
-const bcrypt = require('bcrypt')
 
-//SQ3.db.run('CREATE TABLE IF NOT EXISTS Users (id INTEGER PRIMARY KEY, userName TEXT NOT NULL, password TEXT NOT NULL, access TEXT NOT NULL)')
 
 router.get('/', (req, res) => {
     console.log(req.user)
@@ -109,13 +107,13 @@ router.post('/captain', async (req, res) => {
     if (linkedPlayer && linkedPlayer.team) {
         const teamModel = require('../models/team')
         const team = await teamModel.getTeamById(linkedPlayer.team)
-        
+
         // If team currently has no captain, become captain
         if (team.captainId == null) {
             await teamModel.setTeamCaptain(linkedPlayer.team, req.session.user.id)
         }
     }
-    
+
     res.redirect('/users/profile')
 })
 

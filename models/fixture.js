@@ -16,8 +16,105 @@ async function initTable() {
 
 async function getAllFixtures() {
     // Returns a list of all fixtures.
-    const fixtureList = await SQ3.fetchAll(SQ3.db, "SELECT Fixtures.id, Fixtures.status, Home.id as homeTeamID, Away.id as awayTeamID, Home.teamName AS homeTeam, Away.teamName AS awayTeam, matchDate, competition FROM Fixtures INNER JOIN Teams Home ON Home.id = Fixtures.homeTeam INNER JOIN Teams Away ON Away.id = Fixtures.awayTeam;")
+    let fixtureList = await SQ3.fetchAll(SQ3.db,
+        "SELECT Fixtures.id, \
+        Fixtures.status, \
+        Home.id as homeTeamID, \
+        Away.id as awayTeamID, \
+        Home.teamName AS homeTeam, \
+        Away.teamName AS awayTeam, \
+        Home.home_night AS matchDay, \
+        matchDate, \
+        competition \
+        FROM Fixtures \
+        INNER JOIN Teams Home ON Home.id = Fixtures.homeTeam \
+        INNER JOIN Teams Away ON Away.id = Fixtures.awayTeam \
+        ;")
+
+    // SQLITE doesnt have a specific date type.
+    // So format it here so we can sort later.
+    fixtureList = formatFixtureDate(fixtureList)
     return fixtureList
+}
+
+async function getAllFixturesByTeamID(teamID) {
+    // Returns a list of all fixtures for a given team ID.
+    const fixtureList = await SQ3.fetchAll(SQ3.db,
+        "SELECT Fixtures.id, \
+        Fixtures.status, \
+        Home.id as homeTeamID, \
+        Away.id as awayTeamID, \
+        Home.teamName AS homeTeam, \
+        Away.teamName AS awayTeam, \
+        Home.home_night AS matchDay, \
+        matchDate, \
+        competition \
+        FROM Fixtures \
+        INNER JOIN Teams Home ON Home.id = Fixtures.homeTeam \
+        INNER JOIN Teams Away ON Away.id = Fixtures.awayTeam \
+        WHERE Fixtures.homeTeam = ? OR Fixtures.awayTeam = ?;",
+        [teamID, teamID])
+
+    // SQLITE doesnt have a specific date type.
+    // So format it here so we can sort later.
+    fixtureList = formatFixtureDate(fixtureList)
+    return fixtureList
+}
+
+function sortFixturesByDate(fixtureList) {
+    // Sorts a list of fixtures by date.
+    fixtureList.sort((a, b) => a.matchDate - b.matchDate)
+    return fixtureList
+}
+
+function formatFixtureDate(fixtureList) {
+    // Formats the date of a fixture.
+    for (let f of fixtureList) {
+        f.matchDate = new Date(f.matchDate)
+        f.matchDate.setDate(f.matchDate.getDate() + f.matchDay - 1)
+    }
+    return fixtureList
+}
+
+function groupFixturesByMonth(fixtureList) {
+
+    // Groups a list of fixtures by month.
+    const groupedFixtures = {}
+    for (let f of fixtureList) {
+        let monthKey = 'Unscheduled'
+        let monthLabel = 'Unscheduled'
+        let displayDate = 'Unscheduled'
+        let sortableDate = '0000-00-00'
+
+        if (f.matchDate && !isNaN(f.matchDate.getTime())) {
+            const y = f.matchDate.getFullYear()
+            const m = String(f.matchDate.getMonth() + 1).padStart(2, '0')
+            const d = String(f.matchDate.getDate()).padStart(2, '0')
+            monthKey = `${y}-${m}`
+            monthLabel = f.matchDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' })
+            displayDate = f.matchDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+            sortableDate = `${y}-${m}-${d}`
+        }
+
+        f.displayDate = displayDate
+
+        if (!groupedFixtures[monthKey]) {
+            groupedFixtures[monthKey] = {
+                label: monthLabel,
+                days: {}
+            }
+        }
+
+        if (!groupedFixtures[monthKey].days[sortableDate]) {
+            groupedFixtures[monthKey].days[sortableDate] = {
+                displayDate: displayDate,
+                fixtures: []
+            }
+        }
+
+        groupedFixtures[monthKey].days[sortableDate].fixtures.push(f)
+    }
+    return groupedFixtures
 }
 
 async function getFixtureStatus(id) {
@@ -29,11 +126,16 @@ async function getFixtureStatus(id) {
 async function getFixtureInfo(id) {
     // Returns the fixture summary for a given fixture.
     const fixtureInfo = await SQ3.fetchFirst(SQ3.db, "\
-        SELECT Fixtures.id, Home.id AS homeTeamID, Home.teamName AS homeTeam, Away.id AS awayTeamID, Away.teamName AS awayTeam, matchDate, Status, comp.name AS Comp \
+        SELECT Fixtures.id, \
+        Home.id AS homeTeamID, \
+        Home.teamName AS homeTeam, \
+        Away.id AS awayTeamID, \
+        Away.teamName AS awayTeam, \
+        matchDate, \
+        status \
         FROM Fixtures \
         INNER JOIN Teams Home ON Home.id = Fixtures.homeTeam \
         INNER JOIN Teams Away ON Away.id = Fixtures.awayTeam \
-        INNER JOIN Competitions Comp ON Comp.id = Fixtures.Competition \
         WHERE Fixtures.id = ?;",
         id)
     return fixtureInfo
@@ -132,7 +234,7 @@ async function getAllScoresForFixture(gameid) {
 async function importFixturesFromCSV(csvFilePath, compID = 1) {
     const fs = require('fs');
     const teamModel = require('./team');
-    
+
     if (!fs.existsSync(csvFilePath)) {
         console.error("CSV file not found:", csvFilePath);
         return 0;
@@ -144,7 +246,7 @@ async function importFixturesFromCSV(csvFilePath, compID = 1) {
     let count = 0;
     for (const line of lines) {
         if (!line.trim()) continue;
-        
+
         // Simple CSV splitter
         const cols = line.split(',');
         if (cols.length < 3) continue;
@@ -201,5 +303,6 @@ module.exports = {
     createFixture,
     saveTempScore,
     getAllScoresForFixture,
-    importFixturesFromCSV
+    importFixturesFromCSV,
+    groupFixturesByMonth
 }

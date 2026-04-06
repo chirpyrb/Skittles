@@ -1,4 +1,9 @@
 .env
 node_modules
+*.sql3
+*.exe
+key.pem
+cert.pem
+*.csv
+*.xls*
 skittles.sql3
-sqlite3.exe

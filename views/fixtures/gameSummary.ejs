@@ -40,13 +40,7 @@
         <li>Scorecard</li>
     </nav>
 </div>
-<div>
-    <% if (gameInfo.id=="live" ) { %>
 
-        <% } else { %>
-            <a href="/fixtures/scorecard/new?gameid=<%=gameInfo.id%>">Begin game</a>
-            <% } %>
-</div>
 <div>
     <% if (typeof scores !=='undefined' && scores && scores.length> 0) { %>
         <h3>Provisional/Live Scores</h3>

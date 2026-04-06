@@ -1,7 +1,15 @@
 const SQ3 = require('../models/sql')
 
 async function initTable() {
-    await SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS Teams (id INTEGER PRIMARY KEY, teamName TEXT NOT NULL, homeAlley INTEGER, division INETGER, home_night INTEGER, FOREIGN KEY(homeAlley) REFERENCES Alleys(id), FOREIGN KEY (division) REFERENCES Divisions(id), FOREIGN KEY (home_night) REFERENCES Day(id))')
+    await SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS Teams \
+        (id INTEGER PRIMARY KEY, \
+        teamName TEXT NOT NULL, \
+        homeAlley INTEGER, \
+        division INETGER, \
+        home_night INTEGER, \
+        FOREIGN KEY(homeAlley) REFERENCES Alleys(id), \
+        FOREIGN KEY (division) REFERENCES Divisions(id), \
+        FOREIGN KEY (home_night) REFERENCES Day(id))')
 }
 
 async function getTeamByName(teamName) {

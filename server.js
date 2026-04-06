@@ -42,30 +42,6 @@ app.use(session({
 
 app.get('/health', (req, res) => res.status(200).send('ok'))
 
-// Protection middleware for all routes
-app.use((req, res, next) => {
-    if (req.session.user) {
-        req.user = req.session.user
-        res.locals.user = req.session.user
-        return next()
-    }
-
-    // Ignore authentication for login/register endpoints
-    if (req.path === '/users/login' || req.path === '/users/register') {
-        return next()
-    }
-
-    // Save the URL they were trying to visit and redirect
-    if (req.originalUrl === '/') {
-        req.session.returnTo = '/'
-    } else {
-        req.session.returnTo = req.originalUrl
-    }
-    console.log('Previous URL: ')
-    console.log(req.session.returnTo)
-    res.redirect('/users/login')
-})
-
 const indexRouter = require('./routes/index')
 const pubRouter = require('./routes/pubs')
 const teamsRouter = require('./routes/teams')
