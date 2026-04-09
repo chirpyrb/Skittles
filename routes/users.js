@@ -16,12 +16,13 @@ router.get('/register', async (req, res) => {
 router.post('/register', async (req, res) => {
     const userName = req.body.userName
     const password = req.body.password
+    const access = req.body.newUserRole
 
     // Check if username already exists.
     let userList = await auth.usernameExists(userName)
     if (userList == false) {
         // New User
-        await auth.addUser({ userName, password, access: "dev" })
+        await auth.addUser({ userName: userName, password: password, access: access })
         res.render('users/registrationSuccess')
     } else {
         res.send(req.body.userName + req.body.password)

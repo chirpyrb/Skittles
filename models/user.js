@@ -25,7 +25,9 @@ async function usernameExists(username) {
 async function addUser(User) {
     try {
         const hash = await bcrypt.hash(User.password, 10)
-        await SQ3.execute(SQ3.db, 'INSERT INTO Users(userName, password, access) VALUES (?,?,?)', [User.userName, hash, User.access])
+        await SQ3.execute(SQ3.db,
+            'INSERT INTO Users(userName, password, access) VALUES (?,?,?)',
+            [User.userName, hash, User.access])
         return true
     } catch (err) {
         return err
