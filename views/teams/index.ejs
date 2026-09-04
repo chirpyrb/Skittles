@@ -1,12 +1,28 @@
 <h2>League team directory</h2>
-<% allTeams.forEach(team => { %>
-    <div>
-        <span><a href="/teams?teamName=<%= team.teamName %>"><%= team.teamName %></a></span>
-        <span><%= team.homeAlley %></span>
-        <span><%= team.division %></span>
-    </div>
-<% }) %>
+<% if (allTeams && allTeams.length > 0) { %>
+    <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+        <thead>
+            <tr style="background-color: #f2f2f2; text-align: left;">
+                <th style="padding: 8px;">Team Name</th>
+                <th style="padding: 8px;">Home Alley</th>
+                <th style="padding: 8px;">Division</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% allTeams.forEach(team => { %>
+                <tr>
+                    <td style="padding: 8px; font-weight: bold;">
+                        <a href="/teams?teamName=<%= encodeURIComponent(team.teamName || team.name || ('Team ' + team.id)) %>" style="text-decoration: none; color: #007bff;"><%= team.teamName || team.name || ('Team ' + team.id) %></a>
+                    </td>
+                    <td style="padding: 8px;"><%= team.homeAlley || '-' %></td>
+                    <td style="padding: 8px;"><%= team.division || '-' %></td>
+                </tr>
+            <% }) %>
+        </tbody>
+    </table>
+<% } else { %>
+    <p>No teams found in the directory.</p>
+<% } %>
 <br>
 
-<a href="/teams/new">New Team</a>
-All teams
+<a href="/teams/new" style="text-decoration: none; display: inline-block; padding: 6px 12px; background: #28a745; color: white; border-radius: 4px;">+ Add New Team</a>

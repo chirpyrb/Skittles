@@ -1,19 +1,23 @@
-<div>
-    <div>
-        <span>
-            <label>Score</label>
-            <label>Bolters</label>
-            <label>Total</label>
-        </span>
-    </div>
-    <div>
-        <span>
-            <%= player.alias %>
-                <input type="number" class="input score hand-<%= handNumber %> player-<%= playerIndex %>"
-                    name="score<%= handNumber %>_<%= playerIndex %>" id="score<%= handNumber %>_<%= playerIndex %>">
-                <input type="number" class="input bolters hand-<%= handNumber %> player-<%= playerIndex %>"
-                    name="bolters<%= handNumber %>_<%= playerIndex %>" id="bolters<%= handNumber %>_<%= playerIndex %>">
-                <span class="running-total player-<%= playerIndex %> hand-<%= handNumber %>">0</span>
-        </span>
-    </div>
-</div>
+<tr class="player-entry-row">
+    <td>
+        <div class="player-info">
+            <div class="player-avatar">
+                <%= (player.alias || player.firstName || 'P').charAt(0).toUpperCase() %>
+            </div>
+            <div class="player-name">
+                <%= player.alias || (player.firstName ? (player.firstName + ' ' + player.secondName) : ('Player ' + (playerIndex + 1))) %>
+            </div>
+        </div>
+    </td>
+    <td style="text-align: center;">
+        <input type="number" min="0" max="27" class="score-input-field input score hand-<%= handNumber %> player-<%= playerIndex %>"
+            name="score<%= handNumber %>_<%= playerIndex %>" id="score<%= handNumber %>_<%= playerIndex %>" placeholder="0">
+    </td>
+    <td style="text-align: center;">
+        <input type="number" min="0" class="bolters-input-field input bolters hand-<%= handNumber %> player-<%= playerIndex %>"
+            name="bolters<%= handNumber %>_<%= playerIndex %>" id="bolters<%= handNumber %>_<%= playerIndex %>" placeholder="0">
+    </td>
+    <td style="text-align: center;">
+        <span class="running-total-badge running-total player-<%= playerIndex %> hand-<%= handNumber %>">0</span>
+    </td>
+</tr>

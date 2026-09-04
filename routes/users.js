@@ -46,6 +46,10 @@ router.post('/login', async (req, res) => {
         console.log(user)
         if (user != null) {
             req.session.user = user
+            const linkedPlayer = await auth.getPlayerForUser(user.userName)
+            if (linkedPlayer && linkedPlayer.team) {
+                req.session.user.Team = linkedPlayer.team
+            }
             if (req.session.returnTo != null) {
                 const returnUrl = req.session.returnTo
                 req.session.returnTo = null
@@ -92,7 +96,11 @@ router.post('/link', async (req, res) => {
     const playerId = req.body.playerId
     if (playerId) {
         await auth.linkPlayerToUser(req.session.user.userName, playerId)
-        req.session.user.playerId = playerId; // Update session
+        req.session.user.playerId = playerId;
+        const linkedPlayer = await auth.getPlayerForUser(req.session.user.userName)
+        if (linkedPlayer && linkedPlayer.team) {
+            req.session.user.Team = linkedPlayer.team
+        }
         req.session.save(() => {
             res.redirect('/users/profile')
         })

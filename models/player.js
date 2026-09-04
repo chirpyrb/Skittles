@@ -32,10 +32,15 @@ async function updatePlayer(id, firstName, secondName, alias) {
     return await SQ3.execute(SQ3.db, "UPDATE Players SET firstName = ?, secondName = ?, alias = ? WHERE id = ?", [firstName, secondName, alias, id])
 }
 
+async function getAllPlayers() {
+    return await SQ3.fetchAll(SQ3.db, `SELECT P.id, P.firstName, P.secondName, P.alias, P.team AS teamId, T.teamName FROM Players P LEFT JOIN Teams T ON P.team = T.id ORDER BY P.secondName ASC, P.firstName ASC;`)
+}
+
 module.exports = {
     initTable,
     getPlayerListForTeam,
     getPlayersOnTeamByName,
     createPlayer,
-    updatePlayer
+    updatePlayer,
+    getAllPlayers
 }

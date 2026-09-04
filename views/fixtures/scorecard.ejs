@@ -1,93 +1,67 @@
-<form id="scorecardForm" action="/fixtures/scorecard" method="post">
-    <div id="Hand-1" class="step active">
-        <div>
-            <h2>Hand 1</h2>
-            <% for (let i=0; i < 8; i++) { %>
-                <%- include('scorecard/_handEntry.ejs', {handNumber: 1, player: players[i] || { alias: 'Empty' },
-                    playerIndex: i})%>
-                    <% } %>
+<div class="scorecard-container">
+    <!-- Stepper Header -->
+    <div class="stepper-bar">
+        <% for (let h = 1; h <= 7; h++) { %>
+            <div class="step-pill <%= h === 1 ? 'active' : '' %>" id="pill-<%= h - 1 %>">Hand <%= h %></div>
+        <% } %>
+        <div class="step-pill" id="pill-7">Summary</div>
+    </div>
+
+    <form id="scorecardForm" action="/fixtures/scorecard" method="post">
+        <% for (let h = 1; h <= 7; h++) { %>
+            <div id="Hand-<%= h %>" class="step <%= h === 1 ? 'active' : '' %>">
+                <div class="hand-header-card">
+                    <h2>Hand <%= h %></h2>
+                    <span style="font-size: 0.9em; opacity: 0.85;">Enter scores for all 8 players</span>
+                </div>
+                
+                <table class="player-entry-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 45%;">Player</th>
+                            <th style="width: 20%; text-align: center;">Score</th>
+                            <th style="width: 15%; text-align: center;">Bolters</th>
+                            <th style="width: 20%; text-align: center;">Running Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% for (let i = 0; i < 8; i++) { %>
+                            <%- include('scorecard/_handEntry.ejs', { handNumber: h, player: players[i] || { alias: 'Empty' }, playerIndex: i }) %>
+                        <% } %>
+                    </tbody>
+                </table>
+
+                <div class="hand-total-banner">
+                    <div class="hand-total-stat">
+                        <div class="hand-total-label">Hand Total Score</div>
+                        <div class="hand-total-value hand-total score hand-<%= h %>">0</div>
+                    </div>
+                    <div style="width: 1px; height: 36px; background: #cbd5e1;"></div>
+                    <div class="hand-total-stat">
+                        <div class="hand-total-label">Hand Bolters</div>
+                        <div class="hand-total-value hand-total bolters hand-<%= h %>">0</div>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+
+        <div id="Game-summary" class="step">
+            <div class="hand-header-card" style="background: linear-gradient(135deg, #0f172a, #1e293b);">
+                <h2>Match Scorecard Summary</h2>
+                <span style="font-size: 0.9em; opacity: 0.85;">Review all hands before final submission</span>
+            </div>
+            <div style="background: #ffffff; padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+                <%- include('scorecard/_finalScore.ejs') %>
+            </div>
         </div>
-        <div>
-            <span class="hand-total score hand-1">0</span>
-            <span class="hand-total bolters hand-1">0</span>
+
+        <div class="card-button-container">
+            <button type="button" class="btn-card btn-secondary previous">&larr; Previous</button>
+            <button type="button" class="btn-card btn-primary next">Next Hand &rarr;</button>
+            <button type="submit" class="btn-card btn-success submit-btn" style="display: none;">Submit Scorecard &#10003;</button>
         </div>
-    </div>
-    <div id="Hand-2" class="step">
-        <h2>Hand 2</h2>
-        <% for (let i=0; i < 8; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 2, player: players[i] || { alias: 'Empty' },
-                playerIndex: i})%>
-                <% } %>
-                    <div>
-                        <span class="hand-total score hand-2">0</span>
-                        <span class="hand-total bolters hand-2">0</span>
-                    </div>
-    </div>
-    <div id="Hand-3" class="step">
-        <h2>Hand 3</h2>
-        <% for (let i=0; i < 8; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 3, player: players[i] || { alias: 'Empty' },
-                playerIndex: i})%>
-                <% } %>
-                    <div>
-                        <span class="hand-total score hand-3">0</span>
-                        <span class="hand-total bolters hand-3">0</span>
-                    </div>
-    </div>
-    <div id="Hand-4" class="step">
-        <h2>Hand 4</h2>
-        <% for (let i=0; i < 8; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 4, player: players[i] || { alias: 'Empty' },
-                playerIndex: i})%>
-                <% } %>
-                    <div>
-                        <span class="hand-total score hand-4">0</span>
-                        <span class="hand-total bolters hand-4">0</span>
-                    </div>
-    </div>
-    <div id="Hand-5" class="step">
-        <h2>Hand 5</h2>
-        <% for (let i=0; i < 8; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 5, player: players[i] || { alias: 'Empty' },
-                playerIndex: i})%>
-                <% } %>
-                    <div>
-                        <span class="hand-total score hand-5">0</span>
-                        <span class="hand-total bolters hand-5">0</span>
-                    </div>
-    </div>
-    <div id="Hand-6" class="step">
-        <h2>Hand 6</h2>
-        <% for (let i=0; i < 8; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 6, player: players[i] || { alias: 'Empty' },
-                playerIndex: i})%>
-                <% } %>
-                    <div>
-                        <span class="hand-total score hand-6">0</span>
-                        <span class="hand-total bolters hand-6">0</span>
-                    </div>
-    </div>
-    <div id="Hand-7" class="step">
-        <h2>Hand 7</h2>
-        <% for (let i=0; i < 8; i++) { %>
-            <%- include('scorecard/_handEntry.ejs', {handNumber: 7, player: players[i] || { alias: 'Empty' },
-                playerIndex: i})%>
-                <% } %>
-                    <div>
-                        <span class="hand-total score hand-7">0</span>
-                        <span class="hand-total bolters hand-7">0</span>
-                    </div>
-    </div>
-    <div id="Game-summary" class="step">
-        <h2>Game Summary</h2>
-        <%- include('scorecard/_finalScore.ejs') %>
-    </div>
-    <div class="button-container">
-        <button type="button" class="previous">Previous</button>
-        <button type="button" class="next">Next</button>
-        <button type="submit" class="previous" style="display: none;">Submit</button>
-    </div>
-</form>
+    </form>
+</div>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -110,15 +84,16 @@
                 currentStep++;
                 steps[currentStep].classList.add('active');
                 updateButtons();
+                if (currentStep === steps.length - 1) {
+                    populateSummaryTable();
+                }
             }
         });
 
         prevButton.addEventListener('click', () => {
-            steps[currentStep].classList
-                .remove('active');
+            steps[currentStep].classList.remove('active');
             currentStep--;
-            steps[currentStep].classList
-                .add('active');
+            steps[currentStep].classList.add('active');
             updateButtons();
         });
 
@@ -149,10 +124,11 @@
         });
 
         async function saveEntry(inputElement) {
-            const handNumber = inputElement.classList[2].replace('hand-', '');
+            const handNumberMatch = inputElement.className.match(/hand-(\d+)/);
+            const handNumber = handNumberMatch ? handNumberMatch[1] : null;
             const playerIndexMatch = inputElement.className.match(/player-(\d+)/);
             const playerIndex = playerIndexMatch ? playerIndexMatch[1] : null;
-            if (playerIndex === null) return;
+            if (playerIndex === null || handNumber === null) return;
 
             const scoreInput = document.getElementById(`score${handNumber}_${playerIndex}`);
             const boltersInput = document.getElementById(`bolters${handNumber}_${playerIndex}`);
@@ -186,20 +162,28 @@
         }
 
         function updateButtons() {
+            const pills = document.querySelectorAll('.step-pill');
+            pills.forEach((p, idx) => {
+                p.classList.remove('active');
+                if (idx < currentStep) p.classList.add('completed');
+                else p.classList.remove('completed');
+                if (idx === currentStep) p.classList.add('active');
+            });
+
             if (currentStep === 0) {
                 prevButton.style.display = 'none';
             } else {
-                prevButton.style.display = 'inline-block';
+                prevButton.style.display = 'inline-flex';
             }
 
             if (currentStep === steps.length - 1) {
                 nextButton.style.display = 'none';
-                form.querySelector('button[type="submit"]')
-                    .style.display = 'inline-block';
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.style.display = 'inline-flex';
             } else {
-                nextButton.style.display = 'inline-block';
-                form.querySelector('button[type="submit"]')
-                    .style.display = 'none';
+                nextButton.style.display = 'inline-flex';
+                const submitBtn = form.querySelector('button[type="submit"]');
+                if (submitBtn) submitBtn.style.display = 'none';
             }
         }
 
@@ -221,19 +205,15 @@
         }
 
         function updateHandTotal(handTotal) {
-            // get the hand number
-            const handNumber = handTotal.classList[2].replace('hand', '');
+            const handMatch = handTotal.className.match(/hand-(\d+)/);
+            const handNumber = handMatch ? handMatch[1] : null;
+            if (!handNumber) return;
 
-            // get all the scores and bolters for that hand
-            const handScores = form.querySelectorAll(`.input.score.hand${handNumber}`);
-            const handBolters = form.querySelectorAll(`.input.bolters.hand${handNumber}`);
+            const handScores = form.querySelectorAll(`.input.score.hand-${handNumber}`);
+            const handBolters = form.querySelectorAll(`.input.bolters.hand-${handNumber}`);
 
-            // get the hand total label.
-            const handScoreTotalLabel = form.querySelector(`.hand-total.score.hand${handNumber}`);
-            const handBolterTotalLabel = form.querySelector(`.hand-total.bolters.hand${handNumber}`);
-
-            // update the label text as the sum of the inputs.
-            // handTotalLabel.textContent = parseInt(handScoreTotal.value) + parseInt(handBolterTotal.value);
+            const handScoreTotalLabel = form.querySelector(`.hand-total.score.hand-${handNumber}`);
+            const handBolterTotalLabel = form.querySelector(`.hand-total.bolters.hand-${handNumber}`);
 
             let scoreTotal = 0;
             let bolterTotal = 0;
@@ -250,9 +230,54 @@
                 }
             });
 
-            handScoreTotalLabel.textContent = scoreTotal;
-            handBolterTotalLabel.textContent = bolterTotal;
+            if (handScoreTotalLabel) handScoreTotalLabel.textContent = scoreTotal;
+            if (handBolterTotalLabel) handBolterTotalLabel.textContent = bolterTotal;
+        }
 
+        function populateSummaryTable() {
+            let grandTotalScore = 0;
+            let grandTotalBolters = 0;
+            const handTotals = [0, 0, 0, 0, 0, 0, 0, 0];
+
+            for (let playerIndex = 0; playerIndex < 8; playerIndex++) {
+                let playerTotalScore = 0;
+                let playerTotalBolters = 0;
+
+                for (let handNumber = 1; handNumber <= 7; handNumber++) {
+                    const scoreInput = document.getElementById(`score${handNumber}_${playerIndex}`);
+                    const boltersInput = document.getElementById(`bolters${handNumber}_${playerIndex}`);
+
+                    const sVal = scoreInput ? (parseInt(scoreInput.value) || 0) : 0;
+                    const bVal = boltersInput ? (parseInt(boltersInput.value) || 0) : 0;
+
+                    const cell = document.getElementById(`summary-score-${handNumber}-${playerIndex}`);
+                    if (cell) cell.textContent = sVal;
+
+                    playerTotalScore += sVal;
+                    playerTotalBolters += bVal;
+                    handTotals[handNumber] += sVal;
+                }
+
+                const playerTotalCell = document.getElementById(`summary-player-total-${playerIndex}`);
+                if (playerTotalCell) playerTotalCell.textContent = playerTotalScore;
+
+                const playerBoltersCell = document.getElementById(`summary-player-bolters-${playerIndex}`);
+                if (playerBoltersCell) playerBoltersCell.textContent = playerTotalBolters;
+
+                grandTotalScore += playerTotalScore;
+                grandTotalBolters += playerTotalBolters;
+            }
+
+            for (let handNumber = 1; handNumber <= 7; handNumber++) {
+                const handCell = document.getElementById(`summary-hand-total-${handNumber}`);
+                if (handCell) handCell.textContent = handTotals[handNumber];
+            }
+
+            const grandTotalCell = document.getElementById(`summary-grand-total`);
+            if (grandTotalCell) grandTotalCell.textContent = grandTotalScore;
+
+            const grandBoltersCell = document.getElementById(`summary-grand-bolters`);
+            if (grandBoltersCell) grandBoltersCell.textContent = grandTotalBolters;
         }
     });
 </script>

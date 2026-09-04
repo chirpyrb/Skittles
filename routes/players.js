@@ -7,34 +7,48 @@ const bodyParser = require('body-parser')
 
 // Get all players
 router.get('/', async (req, res) => {
-    const teamName = req.query.teamName
-    console.log(teamName)
-    // const playerList = await player.getPlayersOnTeamByName(teamName)
-    // console.log(playerList)
-    res.send('Players')
-})
-
-// New player
-router.get('/new', async (req, res) => {
-    // All players should be added to a team
-    if (req.query.teamName != null) {
-        res.render('players/new', { teamName: req.query.teamName })
-    } else {
-        res.send("Players must be added to a team")
+    try {
+        const playerList = await player.getAllPlayers()
+        res.render('players/index', { playerList: playerList })
+    } catch (err) {
+        console.error(err)
+        res.redirect('/')
     }
 })
 
-// Create team.
+// New player form
+router.get('/new', async (req, res) => {
+    try {
+        const teamList = await team.getAllTeams()
+        let selectedTeamId = req.query.teamID || null;
+        if (!selectedTeamId && req.query.teamName) {
+            const found = await team.getTeamIdByName(req.query.teamName);
+            if (found) selectedTeamId = found;
+        }
+        res.render('players/new', { teamList: teamList, selectedTeamId: selectedTeamId })
+    } catch (err) {
+        console.error(err)
+        res.redirect('/players')
+    }
+})
+
+// Create player
 router.post('/', async (req, res) => {
-    const firstName = req.body.firstName
-    const secondName = req.body.secondName
-    const alias = req.body.alias
-    const teamName = req.query.teamName
-    const teamID = await team.getTeamIdByName(teamName)
-    console.log(teamID)
-    console.log(firstName, secondName, alias, teamName)
-    await player.createPlayer(firstName, secondName, alias, teamID.id)
-    res.redirect(`/teams?teamName=${teamName}`)
+    try {
+        const { firstName, secondName, alias, teamID } = req.body
+        let finalTeamId = teamID;
+        if (!finalTeamId && req.query.teamName) {
+            const found = await team.getTeamIdByName(req.query.teamName)
+            if (found) finalTeamId = found;
+        }
+        if (firstName && secondName) {
+            await player.createPlayer(firstName, secondName, alias || '', finalTeamId || null)
+        }
+        res.redirect('/players')
+    } catch (err) {
+        console.error("Error creating player:", err)
+        res.redirect('/players')
+    }
 })
 
 module.exports = router

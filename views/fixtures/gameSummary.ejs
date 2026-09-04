@@ -1,29 +1,45 @@
-<div>
-    <div>
-        <span>
-            <%=gameInfo.matchDate%>
-        </span>
-        <span>
-            <%=gameInfo.Comp%> Season
-        </span>
+<div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #dee2e6;">
+    <div style="font-size: 0.9em; color: #6c757d; margin-bottom: 10px;">
+        <span><%= gameInfo.matchDate ? new Date(gameInfo.matchDate).toLocaleDateString('en-GB', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : 'Date TBD' %></span>
+        <% if (gameInfo.status) { %>
+            <span style="margin-left: 10px; padding: 3px 8px; background: #007bff; color: white; border-radius: 12px; font-size: 0.85em;"><%= gameInfo.status %></span>
+        <% } %>
     </div>
-    <div>
-        <span>
-            <%=gameInfo.homeTeam%>
-        </span>
-        <span>Home Crest</span>
-        <span>Home score</span>
-        <span>V</span>
-        <span>Away score</span>
-        <span>Away Crest</span>
-        <span>
-            <%=gameInfo.awayTeam%>
-        </span>
-    </div>
-    <div>
-        <span>Venue: venue</span>
+    <div style="display: flex; align-items: center; justify-content: space-around; font-size: 1.4em; font-weight: bold; margin: 15px 0;">
+        <div style="text-align: right; width: 40%;">
+            <%= gameInfo.homeTeam %>
+        </div>
+        <div style="background: #343a40; color: white; padding: 8px 16px; border-radius: 6px; font-size: 1.2em;">
+            <%= gameInfo.homeScore != null ? gameInfo.homeScore : '-' %>
+            <span style="margin: 0 5px; color: #aaa;">:</span>
+            <%= gameInfo.awayScore != null ? gameInfo.awayScore : '-' %>
+        </div>
+        <div style="text-align: left; width: 40%;">
+            <%= gameInfo.awayTeam %>
+        </div>
     </div>
 </div>
+
+<% 
+    const canManageGame = typeof user !== 'undefined' && user && (
+        user.access === 'dev' || 
+        user.access === 'TeamCaptain' || 
+        user.access === 'LeagueSecretary' ||
+        (user.Team && (user.Team == gameInfo.homeTeamID || user.Team == gameInfo.awayTeamID))
+    );
+%>
+
+<% if (canManageGame) { %>
+    <div style="margin: 20px 0; text-align: center;">
+        <a href="/fixtures/scorecard/new?gameid=<%= gameInfo.id %>" style="display: inline-block; padding: 12px 24px; background-color: #28a745; color: white; font-weight: bold; text-decoration: none; border-radius: 6px; font-size: 1.1em; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <% if (gameInfo.status === 'Completed') { %>
+                Edit Scorecard &rarr;
+            <% } else { %>
+                Start / Enter Match Scorecard &rarr;
+            <% } %>
+        </a>
+    </div>
+<% } %>
 <div>
     <nav>
         <li>Teams</li>
@@ -100,3 +116,5 @@
             <p>No scores have been registered yet.</p>
             <% } %>
 </div>
+<br><br>
+<a href="/fixtures" style="text-decoration: none; font-weight: bold; color: #007bff;">&larr; Back to Fixtures</a>

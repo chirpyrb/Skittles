@@ -9,9 +9,13 @@ async function initTable() {
         competition INTEGER, \
         matchDate TEXT NOT NULL, \
         status TEXT, \
+        homeScore INTEGER, \
+        awayScore INTEGER, \
         FOREIGN KEY (homeTeam) REFERENCES Teams(id), \
         FOREIGN KEY (awayTeam) REFERENCES Teams(id), \
         FOREIGN KEY (competition) REFERENCES competitions(id))')
+    try { await SQ3.execute(SQ3.db, 'ALTER TABLE Fixtures ADD COLUMN homeScore INTEGER'); } catch(e) {}
+    try { await SQ3.execute(SQ3.db, 'ALTER TABLE Fixtures ADD COLUMN awayScore INTEGER'); } catch(e) {}
 }
 
 async function getAllFixtures() {
@@ -19,6 +23,8 @@ async function getAllFixtures() {
     let fixtureList = await SQ3.fetchAll(SQ3.db,
         "SELECT Fixtures.id, \
         Fixtures.status, \
+        Fixtures.homeScore, \
+        Fixtures.awayScore, \
         Home.id as homeTeamID, \
         Away.id as awayTeamID, \
         Home.teamName AS homeTeam, \
@@ -42,6 +48,8 @@ async function getAllFixturesByTeamID(teamID) {
     const fixtureList = await SQ3.fetchAll(SQ3.db,
         "SELECT Fixtures.id, \
         Fixtures.status, \
+        Fixtures.homeScore, \
+        Fixtures.awayScore, \
         Home.id as homeTeamID, \
         Away.id as awayTeamID, \
         Home.teamName AS homeTeam, \
@@ -132,7 +140,9 @@ async function getFixtureInfo(id) {
         Away.id AS awayTeamID, \
         Away.teamName AS awayTeam, \
         matchDate, \
-        status \
+        status, \
+        homeScore, \
+        awayScore \
         FROM Fixtures \
         INNER JOIN Teams Home ON Home.id = Fixtures.homeTeam \
         INNER JOIN Teams Away ON Away.id = Fixtures.awayTeam \
@@ -294,6 +304,22 @@ async function importFixturesFromCSV(csvFilePath, compID = 1) {
     return count;
 }
 
+async function updateFixtureScore(gameid, homeScore, awayScore, status = 'Completed') {
+    let sql = 'UPDATE Fixtures SET status = ?';
+    const params = [status];
+    if (homeScore !== undefined && homeScore !== null) {
+        sql += ', homeScore = ?';
+        params.push(homeScore);
+    }
+    if (awayScore !== undefined && awayScore !== null) {
+        sql += ', awayScore = ?';
+        params.push(awayScore);
+    }
+    sql += ' WHERE id = ?';
+    params.push(gameid);
+    return await SQ3.execute(SQ3.db, sql, params);
+}
+
 module.exports = {
     initTable,
     getAllFixtures,
@@ -304,5 +330,6 @@ module.exports = {
     saveTempScore,
     getAllScoresForFixture,
     importFixturesFromCSV,
-    groupFixturesByMonth
+    groupFixturesByMonth,
+    updateFixtureScore
 }

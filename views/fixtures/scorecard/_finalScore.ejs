@@ -1,0 +1,43 @@
+<div>
+    <h3>Scorecard Summary</h3>
+    <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+        <thead>
+            <tr style="background-color: #f2f2f2; text-align: center;">
+                <th style="text-align: left; padding: 8px;">Player</th>
+                <th>H1</th>
+                <th>H2</th>
+                <th>H3</th>
+                <th>H4</th>
+                <th>H5</th>
+                <th>H6</th>
+                <th>H7</th>
+                <th>Total</th>
+                <th>Bolters</th>
+            </tr>
+        </thead>
+        <tbody id="summaryTableBody">
+            <% for (let i = 0; i < 8; i++) { %>
+                <tr id="summary-row-<%= i %>" style="text-align: center;">
+                    <td style="text-align: left; font-weight: bold; padding: 8px;" id="summary-name-<%= i %>">
+                        <%= players && players[i] ? (players[i].alias || players[i].name) : ('Player ' + (i + 1)) %>
+                    </td>
+                    <% for (let h = 1; h <= 7; h++) { %>
+                        <td id="summary-score-<%= h %>-<%= i %>">0</td>
+                    <% } %>
+                    <td id="summary-player-total-<%= i %>" style="font-weight: bold; background-color: #f9f9f9;">0</td>
+                    <td id="summary-player-bolters-<%= i %>">0</td>
+                </tr>
+            <% } %>
+        </tbody>
+        <tfoot>
+            <tr style="font-weight: bold; background-color: #e9e9e9; text-align: center;">
+                <td style="text-align: left; padding: 8px;">Team Total</td>
+                <% for (let h = 1; h <= 7; h++) { %>
+                    <td id="summary-hand-total-<%= h %>">0</td>
+                <% } %>
+                <td id="summary-grand-total" style="background-color: #d4edda; color: #155724; font-size: 1.1em;">0</td>
+                <td id="summary-grand-bolters">0</td>
+            </tr>
+        </tfoot>
+    </table>
+</div>

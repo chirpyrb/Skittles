@@ -1,6 +1,37 @@
-<h2><%=teamName%></h2>
-<form action="/players?teamName=<%=teamName%>" method="post">
-    <%- include('_newPlayerForm') %>
-    <a href="/teams">Cancel</a>
-    <button type="submit">Create</button>
+<h2>Register New Player</h2>
+
+<form action="/players" method="POST" style="max-width: 500px; background: #f8f9fa; padding: 20px; border-radius: 8px; border: 1px solid #dee2e6; margin-top: 15px;">
+    <div style="margin-bottom: 15px;">
+        <label for="firstName" style="display: block; font-weight: bold; margin-bottom: 5px;">First Name *</label>
+        <input type="text" id="firstName" name="firstName" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label for="secondName" style="display: block; font-weight: bold; margin-bottom: 5px;">Second / Last Name *</label>
+        <input type="text" id="secondName" name="secondName" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <label for="alias" style="display: block; font-weight: bold; margin-bottom: 5px;">Alias / Nickname</label>
+        <input type="text" id="alias" name="alias" placeholder="e.g. 'The Rock'" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+    </div>
+
+    <div style="margin-bottom: 20px;">
+        <label for="teamID" style="display: block; font-weight: bold; margin-bottom: 5px;">Register with Team *</label>
+        <select id="teamID" name="teamID" required style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
+            <option value="" disabled <%= !selectedTeamId ? 'selected' : '' %>>-- Select Team --</option>
+            <% if (typeof teamList !== 'undefined' && teamList) { %>
+                <% teamList.forEach(t => { %>
+                    <option value="<%= t.id %>" <%= (selectedTeamId == t.id) ? 'selected' : '' %>>
+                        <%= t.teamName || t.name %>
+                    </option>
+                <% }) %>
+            <% } %>
+        </select>
+    </div>
+
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <button type="submit" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Register Player</button>
+        <a href="/players" style="padding: 10px 20px; background: #6c757d; color: white; text-decoration: none; border-radius: 4px; font-weight: bold;">Cancel</a>
+    </div>
 </form>

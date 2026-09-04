@@ -1,70 +1,45 @@
 <form id="selectTeamForm" action="/fixtures/scorecard/new/team" method="POST">
-<h2>Select team</h2>
-<div>
-    <span>
-        <label>Player 1 - </label>
-        <select name="player">
-        <%- include('_playerDropdown.ejs') %>
-        </select>
-    </span>
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #dee2e6;">
+        <h2>Select Team Sheet</h2>
+        <% if (typeof fixtureInfo !== 'undefined' && fixtureInfo) { %>
+            <p style="font-size: 1.1em; margin: 10px 0;">
+                <strong>Fixture:</strong> <%= fixtureInfo.homeTeam %> vs <%= fixtureInfo.awayTeam %>
+            </p>
+            <div style="margin-top: 10px; padding: 12px; background: #e9ecef; border-radius: 4px;">
+                <div style="margin-bottom: 5px;">
+                    <strong>Configuring Team Sheet For:</strong>
+                    <span style="font-weight: bold; color: #007bff; font-size: 1.1em; margin-left: 5px;">
+                        <%= (typeof targetTeamId !== 'undefined' && targetTeamId == fixtureInfo.awayTeamID) ? (fixtureInfo.awayTeam + ' (Away Team)') : (fixtureInfo.homeTeam + ' (Home Team)') %>
+                    </span>
+                </div>
+
+                <% if (typeof user !== 'undefined' && user && (user.access === 'dev' || user.access === 'LeagueSecretary' || user.access === 'TeamCaptain')) { %>
+                    <div style="margin-top: 10px; font-size: 0.95em; border-top: 1px solid #ccc; padding-top: 8px;">
+                        <span><strong>Switch Team to Manage:</strong> </span>
+                        <a href="/fixtures/scorecard/new/team?teamType=home" style="margin-right: 12px; padding: 4px 8px; background: <%= (typeof targetTeamId !== 'undefined' && targetTeamId == fixtureInfo.homeTeamID) ? '#007bff' : '#fff' %>; color: <%= (typeof targetTeamId !== 'undefined' && targetTeamId == fixtureInfo.homeTeamID) ? '#fff' : '#007bff' %>; text-decoration: none; border-radius: 4px; border: 1px solid #007bff;">
+                            <%= fixtureInfo.homeTeam %> (Home)
+                        </a>
+                        <a href="/fixtures/scorecard/new/team?teamType=away" style="padding: 4px 8px; background: <%= (typeof targetTeamId !== 'undefined' && targetTeamId == fixtureInfo.awayTeamID) ? '#007bff' : '#fff' %>; color: <%= (typeof targetTeamId !== 'undefined' && targetTeamId == fixtureInfo.awayTeamID) ? '#fff' : '#007bff' %>; text-decoration: none; border-radius: 4px; border: 1px solid #007bff;">
+                            <%= fixtureInfo.awayTeam %> (Away)
+                        </a>
+                    </div>
+                <% } %>
+            </div>
+        <% } %>
     </div>
+
     <div>
-    <span>
-        <label>Player 2 - </label>
-        <select name="player">
-        <%- include('_playerDropdown.ejs') %>
-        </select>
-    </span>
+        <% for (let i = 1; i <= 8; i++) { %>
+            <div style="margin-bottom: 12px;">
+                <label style="font-weight: bold; width: 90px; display: inline-block;">Player <%= i %> - </label>
+                <select name="player" style="padding: 6px; min-width: 260px;">
+                    <%- include('_playerDropdown.ejs') %>
+                </select>
+            </div>
+        <% } %>
     </div>
-    <div>
-    <span>
-        <label>Player 3 - </label>
-        <select name="player">
-        <%- include('_playerDropdown.ejs') %>
-        </select>
-    </span>
+
+    <div class="button-container" style="margin-top: 25px;">
+        <button type="submit" style="padding: 10px 24px; background: #28a745; color: white; border: none; border-radius: 4px; font-weight: bold; font-size: 1.05em; cursor: pointer;">Submit Team Sheet &rarr;</button>
     </div>
-    <div>
-    <span>
-        <label>Player 4 - </label>
-        <select name="player">
-        <%- include('_playerDropdown.ejs') %>
-        </select>
-    </span>
-    </div>
-    <div>
-    <span>
-        <label>Player 5 - </label>
-        <select name="player">
-        <%- include('_playerDropdown.ejs') %>
-        </select>
-    </span>
-    </div>
-    <div>
-    <span>
-        <label>Player 6 - </label>
-        <select name="player">
-        <%- include('_playerDropdown.ejs') %>
-        </select>
-    </span>
-    </div>
-    <div>
-    <span>
-        <label>Player 7 - </label>
-        <select name="player">
-        <%- include('_playerDropdown.ejs') %>
-        </select>
-    </span>
-    </div>
-    <div>
-    <span>
-        <label>Player 8 - </label>
-        <select name="player">
-        <%- include('_playerDropdown.ejs') %>
-        </select>
-    </span>
-    </div>
-</div>
-<div class="button-container">
-    <button type="submit">Submit</button>
 </form>
