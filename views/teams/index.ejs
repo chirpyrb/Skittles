@@ -1,28 +1,46 @@
-<h2>League team directory</h2>
+<div class="directory-toolbar">
+    <h2>League team directory</h2>
+    <div class="directory-actions">
+        <a href="/teams/new" role="button">Add team</a>
+        <% if (user && (user.access === 'dev' || user.access === 'LeagueSecretary')) { %>
+            <a href="/teams/bulk-upload" role="button">Bulk upload teams</a>
+        <% } %>
+    </div>
+</div>
 <% if (allTeams && allTeams.length > 0) { %>
-    <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+    <% const teamsByDivision = allTeams.reduce((groups, team) => {
+        const division = team.division || 'Division not set'
+        if (!groups[division]) groups[division] = []
+        groups[division].push(team)
+        return groups
+    }, {}) %>
+    <table>
         <thead>
-            <tr style="background-color: #f2f2f2; text-align: left;">
-                <th style="padding: 8px;">Team Name</th>
-                <th style="padding: 8px;">Home Alley</th>
-                <th style="padding: 8px;">Division</th>
+            <tr>
+                <th>Team Name</th>
+                <th>Home Alley</th>
+                <th>Home Day</th>
+                <th>Division</th>
             </tr>
         </thead>
         <tbody>
-            <% allTeams.forEach(team => { %>
-                <tr>
-                    <td style="padding: 8px; font-weight: bold;">
-                        <a href="/teams?teamName=<%= encodeURIComponent(team.teamName || team.name || ('Team ' + team.id)) %>" style="text-decoration: none; color: #007bff;"><%= team.teamName || team.name || ('Team ' + team.id) %></a>
-                    </td>
-                    <td style="padding: 8px;"><%= team.homeAlley || '-' %></td>
-                    <td style="padding: 8px;"><%= team.division || '-' %></td>
+            <% Object.keys(teamsByDivision).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).forEach(division => { %>
+                <tr class="team-division-heading">
+                    <th colspan="4"><%= division %></th>
                 </tr>
+                <% teamsByDivision[division].forEach(team => { %>
+                <tr>
+                    <td>
+                        <a href="/teams?teamName=<%= encodeURIComponent(team.teamName || team.name || ('Team ' + team.id)) %>"><strong><%= team.teamName || team.name || ('Team ' + team.id) %></strong></a>
+                    </td>
+                    <td><%= team.homeAlley || '-' %></td>
+                    <td><%= ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][Number(team.homeNight) - 1] || '-' %></td>
+                    <td><%= team.division || '-' %></td>
+                </tr>
+                <% }) %>
             <% }) %>
         </tbody>
     </table>
 <% } else { %>
     <p>No teams found in the directory.</p>
 <% } %>
-<br>
-
-<a href="/teams/new" style="text-decoration: none; display: inline-block; padding: 6px 12px; background: #28a745; color: white; border-radius: 4px;">+ Add New Team</a>

@@ -1,0 +1,4 @@
+<h2>Bulk upload players</h2>
+<p>CSV columns: <code>firstName, secondName, alias, teamName</code></p>
+<%- include('../partials/bulkUploadForm', { action: '/players/bulk-upload', imported: imported, errors: errors }) %>
+<p><a href="/players">Back to players</a></p>

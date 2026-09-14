@@ -1,18 +1,27 @@
-<h2>Alley directory</h2>
+<div class="directory-toolbar">
+    <h2>Alley directory</h2>
+    <div class="directory-actions">
+        <a href="/alleys/new" role="button">Add alley</a>
+        <% if (user && (user.access === 'dev' || user.access === 'LeagueSecretary')) { %>
+            <a href="/alleys/bulk-upload" role="button">Bulk upload alleys</a>
+        <% } %>
+    </div>
+</div>
 <form action="/alleys" method="GET">
     <label>Alley name</label>
     <input type="text" name="alleySearchName">
     <button type="submit">Search</button>
 </form>
-<br>
-
-<% alleyListArray.forEach(alley => { %>
-    <div>
-        <span><%= alley.PubName %></span>
-        <span> - </span>
-        <span><%= alley.AlleyName %></span>
-    </div>
-<% }) %>
-
-<br>
-<a href="/alleys/new">Add new alley</a>
+<div class="directory-list">
+    <% alleyListArray.forEach(alley => { %>
+        <div class="directory-item">
+            <div>
+                <strong><%= alley.AlleyName %></strong>
+                <span class="muted"> at <%= alley.PubName %></span>
+            </div>
+            <% if (user && ['dev', 'LeagueSecretary', 'TeamSecratary', 'TeamSecretary'].includes(user.access)) { %>
+                <a href="/alleys/edit/<%= alley.id %>" role="button">Edit</a>
+            <% } %>
+        </div>
+    <% }) %>
+</div>

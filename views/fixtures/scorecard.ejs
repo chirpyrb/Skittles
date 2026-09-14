@@ -1,15 +1,29 @@
-<div class="scorecard-container">
+<div class="scorecard-container" data-resume-hand="<%= resumeHand || 1 %>">
     <!-- Stepper Header -->
     <div class="stepper-bar">
         <% for (let h = 1; h <= 7; h++) { %>
-            <div class="step-pill <%= h === 1 ? 'active' : '' %>" id="pill-<%= h - 1 %>">Hand <%= h %></div>
+            <div class="step-pill <%= h === (resumeHand || 1) ? 'active' : '' %>" id="pill-<%= h - 1 %>">Hand <%= h %></div>
         <% } %>
         <div class="step-pill" id="pill-7">Summary</div>
     </div>
 
+    <div class="live-hand-totals" aria-label="Live totals by hand">
+        <strong class="live-hand-totals-title">Totals by hand</strong>
+        <% for (let h = 1; h <= 7; h++) { %>
+            <div class="live-hand-total">
+                <span>H<%= h %></span>
+                <strong class="live-hand-total-value" data-hand-total="<%= h %>">0</strong>
+            </div>
+        <% } %>
+        <div class="live-hand-total live-hand-grand-total">
+            <span>Total</span>
+            <strong class="live-hand-total-value" data-grand-total>0</strong>
+        </div>
+    </div>
+
     <form id="scorecardForm" action="/fixtures/scorecard" method="post">
         <% for (let h = 1; h <= 7; h++) { %>
-            <div id="Hand-<%= h %>" class="step <%= h === 1 ? 'active' : '' %>">
+            <div id="Hand-<%= h %>" class="step <%= h === (resumeHand || 1) ? 'active' : '' %>">
                 <div class="hand-header-card">
                     <h2>Hand <%= h %></h2>
                     <span style="font-size: 0.9em; opacity: 0.85;">Enter scores for all 8 players</span>
@@ -21,12 +35,15 @@
                             <th style="width: 45%;">Player</th>
                             <th style="width: 20%; text-align: center;">Score</th>
                             <th style="width: 15%; text-align: center;">Bolters</th>
+                            <th style="width: 10%; text-align: center;">Flopper</th>
+                            <th style="width: 10%; text-align: center;">Square</th>
+                            <th style="width: 10%; text-align: center;">Chance</th>
                             <th style="width: 20%; text-align: center;">Running Total</th>
                         </tr>
                     </thead>
                     <tbody>
                         <% for (let i = 0; i < 8; i++) { %>
-                            <%- include('scorecard/_handEntry.ejs', { handNumber: h, player: players[i] || { alias: 'Empty' }, playerIndex: i }) %>
+                            <%- include('scorecard/_handEntry.ejs', { handNumber: h, player: players[i] || { alias: 'Empty' }, playerIndex: i, savedScores: savedScores }) %>
                         <% } %>
                     </tbody>
                 </table>
@@ -65,36 +82,45 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const scorecardContainer = document.querySelector('.scorecard-container');
         const form = document.getElementById('scorecardForm');
         const steps = form.querySelectorAll('.step');
         const prevButton = form.querySelector('.previous');
         const nextButton = form.querySelector('.next');
         const handScoreTotals = form.querySelectorAll('.input.score');
         const handBolterTotals = form.querySelectorAll('.input.bolters');
+        const eventInputs = form.querySelectorAll('.input.event');
         const scoreEmbellishments = form.querySelectorAll('scoreEmbellishment');
+        const saveTimers = new Map();
+        const stepPills = scorecardContainer.querySelectorAll('.step-pill');
 
-        let currentStep = 0;
+        const resumeHand = parseInt(form.closest('.scorecard-container').dataset.resumeHand, 10) || 1;
+        let currentStep = Math.min(Math.max(resumeHand - 1, 0), steps.length - 1);
 
         updateButtons();
         updateAllPlayerTotals();
+        updateAllHandTotals();
 
         nextButton.addEventListener('click', () => {
             if (validateForm()) {
-                steps[currentStep].classList.remove('active');
-                currentStep++;
-                steps[currentStep].classList.add('active');
-                updateButtons();
-                if (currentStep === steps.length - 1) {
-                    populateSummaryTable();
-                }
+                showStep(currentStep + 1);
             }
         });
 
         prevButton.addEventListener('click', () => {
-            steps[currentStep].classList.remove('active');
-            currentStep--;
-            steps[currentStep].classList.add('active');
-            updateButtons();
+            showStep(currentStep - 1);
+        });
+
+        stepPills.forEach((stepPill, stepIndex) => {
+            stepPill.setAttribute('role', 'button');
+            stepPill.setAttribute('tabindex', '0');
+            stepPill.addEventListener('click', () => showStep(stepIndex));
+            stepPill.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    showStep(stepIndex);
+                }
+            });
         });
 
         form.addEventListener('submit', (event) => {
@@ -107,6 +133,8 @@
             handScoreTotal.addEventListener('input', () => {
                 updateHandTotal(handScoreTotal);
                 updateAllPlayerTotals();
+                updateAllHandTotals();
+                queueSaveEntry(handScoreTotal);
             });
             handScoreTotal.addEventListener('change', () => {
                 saveEntry(handScoreTotal);
@@ -117,10 +145,16 @@
             handBolterTotal.addEventListener('input', () => {
                 updateHandTotal(handBolterTotal);
                 updateAllPlayerTotals();
+                updateAllHandTotals();
+                queueSaveEntry(handBolterTotal);
             });
             handBolterTotal.addEventListener('change', () => {
                 saveEntry(handBolterTotal);
             });
+        });
+
+        eventInputs.forEach(eventInput => {
+            eventInput.addEventListener('change', () => saveEntry(eventInput));
         });
 
         async function saveEntry(inputElement) {
@@ -132,22 +166,39 @@
 
             const scoreInput = document.getElementById(`score${handNumber}_${playerIndex}`);
             const boltersInput = document.getElementById(`bolters${handNumber}_${playerIndex}`);
+            const flopperInput = document.getElementById(`flopper${handNumber}_${playerIndex}`);
+            const squareInput = document.getElementById(`square${handNumber}_${playerIndex}`);
+            const chanceInput = document.getElementById(`chance${handNumber}_${playerIndex}`);
 
             const data = {
                 handNumber: parseInt(handNumber),
                 playerIndex: parseInt(playerIndex),
                 score: scoreInput ? (parseInt(scoreInput.value) || 0) : 0,
-                bolters: boltersInput ? (parseInt(boltersInput.value) || 0) : 0
+                bolters: boltersInput ? (parseInt(boltersInput.value) || 0) : 0,
+                isFlopper: flopperInput && flopperInput.checked ? 1 : 0,
+                isSquare: squareInput && squareInput.checked ? 1 : 0,
+                isChance: chanceInput && chanceInput.checked ? 1 : 0
             };
 
             try {
                 fetch('/fixtures/scorecard/entry', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    keepalive: true,
                     body: JSON.stringify(data)
                 });
             } catch (e) { console.error("Error submitting entry:", e); }
         }
+
+        function queueSaveEntry(inputElement) {
+            const timerKey = inputElement.id;
+            clearTimeout(saveTimers.get(timerKey));
+            saveTimers.set(timerKey, setTimeout(() => saveEntry(inputElement), 250));
+        }
+
+        window.addEventListener('beforeunload', () => {
+            [...handScoreTotals, ...handBolterTotals].forEach(input => saveEntry(input));
+        });
 
         function validateForm() {
             const currentInputs = steps[currentStep].querySelectorAll('input, textarea');
@@ -161,9 +212,21 @@
             return valid;
         }
 
+        function showStep(stepIndex) {
+            if (stepIndex < 0 || stepIndex >= steps.length) return;
+
+            steps[currentStep].classList.remove('active');
+            currentStep = stepIndex;
+            steps[currentStep].classList.add('active');
+            updateButtons();
+
+            if (currentStep === steps.length - 1) {
+                populateSummaryTable();
+            }
+        }
+
         function updateButtons() {
-            const pills = document.querySelectorAll('.step-pill');
-            pills.forEach((p, idx) => {
+            stepPills.forEach((p, idx) => {
                 p.classList.remove('active');
                 if (idx < currentStep) p.classList.add('completed');
                 else p.classList.remove('completed');
@@ -234,27 +297,60 @@
             if (handBolterTotalLabel) handBolterTotalLabel.textContent = bolterTotal;
         }
 
+        function updateAllHandTotals() {
+            let grandTotal = 0;
+
+            for (let handNumber = 1; handNumber <= 7; handNumber++) {
+                let handTotal = 0;
+                form.querySelectorAll(`.input.score.hand-${handNumber}`).forEach(input => {
+                    handTotal += parseInt(input.value) || 0;
+                });
+
+                const totalLabel = document.querySelector(`[data-hand-total="${handNumber}"]`);
+                if (totalLabel) totalLabel.textContent = handTotal;
+                grandTotal += handTotal;
+            }
+
+            const grandTotalLabel = document.querySelector('[data-grand-total]');
+            if (grandTotalLabel) grandTotalLabel.textContent = grandTotal;
+        }
+
         function populateSummaryTable() {
             let grandTotalScore = 0;
             let grandTotalBolters = 0;
+            let grandTotalFloppers = 0;
+            let grandTotalSquares = 0;
+            let grandTotalChances = 0;
             const handTotals = [0, 0, 0, 0, 0, 0, 0, 0];
 
             for (let playerIndex = 0; playerIndex < 8; playerIndex++) {
                 let playerTotalScore = 0;
                 let playerTotalBolters = 0;
+                let playerTotalFloppers = 0;
+                let playerTotalSquares = 0;
+                let playerTotalChances = 0;
 
                 for (let handNumber = 1; handNumber <= 7; handNumber++) {
                     const scoreInput = document.getElementById(`score${handNumber}_${playerIndex}`);
                     const boltersInput = document.getElementById(`bolters${handNumber}_${playerIndex}`);
+                    const flopperInput = document.getElementById(`flopper${handNumber}_${playerIndex}`);
+                    const squareInput = document.getElementById(`square${handNumber}_${playerIndex}`);
+                    const chanceInput = document.getElementById(`chance${handNumber}_${playerIndex}`);
 
                     const sVal = scoreInput ? (parseInt(scoreInput.value) || 0) : 0;
                     const bVal = boltersInput ? (parseInt(boltersInput.value) || 0) : 0;
+                    const fVal = flopperInput && flopperInput.checked ? 1 : 0;
+                    const qVal = squareInput && squareInput.checked ? 1 : 0;
+                    const cVal = chanceInput && chanceInput.checked ? 1 : 0;
 
                     const cell = document.getElementById(`summary-score-${handNumber}-${playerIndex}`);
                     if (cell) cell.textContent = sVal;
 
                     playerTotalScore += sVal;
                     playerTotalBolters += bVal;
+                    playerTotalFloppers += fVal;
+                    playerTotalSquares += qVal;
+                    playerTotalChances += cVal;
                     handTotals[handNumber] += sVal;
                 }
 
@@ -263,9 +359,18 @@
 
                 const playerBoltersCell = document.getElementById(`summary-player-bolters-${playerIndex}`);
                 if (playerBoltersCell) playerBoltersCell.textContent = playerTotalBolters;
+                const playerFloppersCell = document.getElementById(`summary-player-floppers-${playerIndex}`);
+                if (playerFloppersCell) playerFloppersCell.textContent = playerTotalFloppers;
+                const playerSquaresCell = document.getElementById(`summary-player-squares-${playerIndex}`);
+                if (playerSquaresCell) playerSquaresCell.textContent = playerTotalSquares;
+                const playerChancesCell = document.getElementById(`summary-player-chances-${playerIndex}`);
+                if (playerChancesCell) playerChancesCell.textContent = playerTotalChances;
 
                 grandTotalScore += playerTotalScore;
                 grandTotalBolters += playerTotalBolters;
+                grandTotalFloppers += playerTotalFloppers;
+                grandTotalSquares += playerTotalSquares;
+                grandTotalChances += playerTotalChances;
             }
 
             for (let handNumber = 1; handNumber <= 7; handNumber++) {
@@ -278,6 +383,12 @@
 
             const grandBoltersCell = document.getElementById(`summary-grand-bolters`);
             if (grandBoltersCell) grandBoltersCell.textContent = grandTotalBolters;
+            const grandFloppersCell = document.getElementById(`summary-grand-floppers`);
+            if (grandFloppersCell) grandFloppersCell.textContent = grandTotalFloppers;
+            const grandSquaresCell = document.getElementById(`summary-grand-squares`);
+            if (grandSquaresCell) grandSquaresCell.textContent = grandTotalSquares;
+            const grandChancesCell = document.getElementById(`summary-grand-chances`);
+            if (grandChancesCell) grandChancesCell.textContent = grandTotalChances;
         }
     });
 </script>

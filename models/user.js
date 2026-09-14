@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt')
 
 // Init 
 async function initUserDatabase(params) {
-    SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS Users \
+    await SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS Users \
         (id INTEGER PRIMARY KEY, \
         userName TEXT NOT NULL, \
         password TEXT NOT NULL, \

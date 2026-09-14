@@ -1,16 +1,33 @@
 const express = require('express')
 const router = express.Router()
+const multer = require('multer')
 
 const fixture = require('../models/fixture')
 const auth = require('../models/user')
 const player = require('../models/player.js')
 const scorecard = require('../models/scorecard.js')
 
+function requireRegisteredUser(req, res, next) {
+    if (!req.session.user) {
+        req.session.returnTo = req.originalUrl
+        return res.redirect('/users/login')
+    }
+    next()
+}
+
 // Get all fixtures.
 router.get('/', async (req, res) => {
     try {
-        // Get all fixtures.
-        const fixtureList = await fixture.getAllFixtures()
+        const currentSeason = await competition.ensureCurrentSeason()
+        const allCompetitions = await competition.getAllCompetitions()
+        const activeCompetitionIds = new Set(
+            allCompetitions
+                .filter(currentCompetition => currentCompetition.seasonStartYear === currentSeason.seasonStartYear)
+                .map(currentCompetition => currentCompetition.id)
+        )
+
+        const fixtureList = (await fixture.getAllFixtures())
+            .filter(currentFixture => activeCompetitionIds.has(currentFixture.competition))
 
         // Sort fixtures by date.
         const groupedFixtures = fixture.groupFixturesByMonth(fixtureList)
@@ -21,7 +38,24 @@ router.get('/', async (req, res) => {
     }
 })
 
-router.get('/scorecard', async (req, res) => {
+router.get('/live-scores', requireRegisteredUser, async (req, res) => {
+    try {
+        const fixtureList = await fixture.getAllFixtures()
+        const scores = fixtureList.reduce((liveScores, currentFixture) => {
+            liveScores[currentFixture.id] = {
+                homeScore: currentFixture.homeScore,
+                awayScore: currentFixture.awayScore
+            }
+            return liveScores
+        }, {})
+        res.json(scores)
+    } catch (err) {
+        console.error(err)
+        res.status(500).json({ error: 'Unable to load live scores' })
+    }
+})
+
+router.get('/scorecard', requireRegisteredUser, async (req, res) => {
     if (req.query.gameid != null) {
         // Lookup the status of this game.
         const gameStatus = await fixture.getFixtureStatus(req.query.gameid)
@@ -39,7 +73,10 @@ router.get('/scorecard', async (req, res) => {
                     playerName: s.playerName || 'Empty/Unknown',
                     Position: s.Position,
                     hands: [0, 0, 0, 0, 0, 0, 0],
-                    total: 0
+                    total: 0,
+                    floppers: 0,
+                    squares: 0,
+                    chances: 0
                 };
             }
             const score = parseInt(s.Score) || 0;
@@ -48,6 +85,9 @@ router.get('/scorecard', async (req, res) => {
                 playerScores[key].hands[s.Hand - 1] = score;
             }
             playerScores[key].total += score;
+            playerScores[key].floppers += parseInt(s.isFlopper) || 0;
+            playerScores[key].squares += parseInt(s.isSquare) || 0;
+            playerScores[key].chances += parseInt(s.isChance) || 0;
         }
 
         const groupedScores = Object.values(playerScores);
@@ -59,13 +99,14 @@ router.get('/scorecard', async (req, res) => {
             return a.Position - b.Position;
         });
 
-        res.render('fixtures/gameSummary', { gameInfo: gameInfo, user: req.session.user || req.user, scores: groupedScores })
+        const approval = await fixture.getFixtureApprovalStatus(req.query.gameid)
+        res.render('fixtures/gameSummary', { gameInfo: gameInfo, user: req.session.user || req.user, scores: groupedScores, approval: approval })
     } else {
         res.send('Game ID error')
     }
 })
 
-router.get('/live', async (req, res) => {
+router.get('/live', requireRegisteredUser, async (req, res) => {
     // TODO Check the user is allowed to do this.
     const gameInfo = await fixture.getFixtureInfo(req.query.gameid)
     console.log(gameInfo)
@@ -91,12 +132,89 @@ router.get('/live', async (req, res) => {
 
 const team = require('../models/team')
 const competition = require('../models/competition')
+const division = require('../models/division')
+const csvUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 2 * 1024 * 1024 },
+    fileFilter: (req, file, callback) => {
+        if (file.originalname.toLowerCase().endsWith('.csv')) return callback(null, true)
+        callback(new Error('Please upload a CSV file.'))
+    }
+})
+
+function requireFixtureUploadAccess(req, res, next) {
+    if (!req.session.user) {
+        req.session.returnTo = req.originalUrl
+        return res.redirect('/users/login')
+    }
+
+    if (req.session.user.access !== 'dev' && req.session.user.access !== 'LeagueSecretary') {
+        return res.status(403).send('You are not authorised to upload fixtures.')
+    }
+
+    next()
+}
 
 // New fixture
 router.get('/new', async (req, res) => {
     const teamList = await team.getAllTeams()
     const compList = await competition.getAllCompetitions()
     res.render('fixtures/new', { teamList: teamList, compList: compList })
+})
+
+router.get('/bulk-upload', requireFixtureUploadAccess, (req, res) => {
+    res.render('fixtures/bulkUpload', { imported: null, errors: [] })
+})
+
+router.post('/bulk-upload', requireFixtureUploadAccess, (req, res, next) => {
+    csvUpload.single('fixturesCsv')(req, res, async err => {
+        if (err) {
+            return res.status(400).render('fixtures/bulkUpload', {
+                imported: null,
+                errors: [err.message]
+            })
+        }
+
+        if (!req.file) {
+            return res.status(400).render('fixtures/bulkUpload', {
+                imported: null,
+                errors: ['Select a CSV file to upload.']
+            })
+        }
+
+        try {
+            const currentSeason = await competition.ensureCurrentSeason()
+            if (!currentSeason) {
+                return res.status(400).render('fixtures/bulkUpload', {
+                    imported: null,
+                    errors: ['Create an active competition before uploading fixtures.']
+                })
+            }
+
+            const currentCompetitions = await competition.getAllCompetitions()
+            const competitionIds = currentCompetitions
+                .filter(currentCompetition => currentCompetition.seasonStartYear === currentSeason.seasonStartYear)
+                .reduce((ids, currentCompetition) => {
+                    ids[currentCompetition.division] = currentCompetition.id
+                    return ids
+                }, {})
+
+            const result = await fixture.importFixturesFromCSVContent(
+                req.file.buffer.toString('utf8'),
+                competitionIds,
+                division,
+                team
+            )
+
+            if (result.errors.length) {
+                return res.status(400).render('fixtures/bulkUpload', result)
+            }
+
+            res.render('fixtures/bulkUpload', result)
+        } catch (error) {
+            next(error)
+        }
+    })
 })
 
 router.post('/', async (req, res) => {
@@ -126,6 +244,12 @@ router.get('/scorecard/new', async (req, res) => {
         return
     }
 
+    if (req.query.gameid && req.session.user.gamesInProgress &&
+        String(req.session.user.gamesInProgress) !== String(fixtureID)) {
+        req.session.teamSheet = null
+        req.session.user.gamesInProgress = fixtureID
+    }
+
     const fixtureInfo = await fixture.getFixtureInfo(fixtureID)
     if (!fixtureInfo) {
         res.redirect('/fixtures')
@@ -135,6 +259,28 @@ router.get('/scorecard/new', async (req, res) => {
     if (!req.session.user.gamesInProgress) {
         req.session.user.gamesInProgress = fixtureID
         req.session.save()
+    }
+
+    const userid = req.session.user.id || 1
+    const savedScores = await fixture.getTempScoresForUser(fixtureID, userid)
+    const resumeHand = savedScores.reduce((highestHand, savedScore) => {
+        return Math.max(highestHand, parseInt(savedScore.Hand) || 0)
+    }, 1)
+
+    if (!req.session.teamSheet) {
+        if (savedScores.length > 0) {
+            req.session.teamSheet = Array(8).fill('null')
+            savedScores.forEach(savedScore => {
+                if (savedScore.Position >= 0 && savedScore.Position < 8 && savedScore.Player) {
+                    req.session.teamSheet[savedScore.Position] = String(savedScore.Player)
+                }
+            })
+            req.session.user.Team = savedScores[0].Team
+            req.session.save()
+        } else {
+            res.redirect('/fixtures/scorecard/new/team')
+            return
+        }
     }
 
     if (!req.session.teamSheet) {
@@ -148,7 +294,12 @@ router.get('/scorecard/new', async (req, res) => {
         return allPlayers.find(p => p.id == id) || { alias: 'Unknown' }
     })
 
-    res.render('fixtures/scorecard', { fixtureInfo: fixtureInfo, players: mappedPlayers })
+    res.render('fixtures/scorecard', {
+        fixtureInfo: fixtureInfo,
+        players: mappedPlayers,
+        savedScores: savedScores,
+        resumeHand: resumeHand
+    })
 })
 
 router.get('/scorecard/new/team', async (req, res) => {
@@ -229,7 +380,18 @@ router.post('/scorecard/new/team', async (req, res) => {
         return allPlayers.find(p => p.id == id) || { alias: 'Unknown' }
     })
 
-    res.render('fixtures/scorecard', { teamSheet: req.session.teamSheet, players: mappedPlayers, fixtureInfo: fixtureInfo })
+    const savedScores = await fixture.getTempScoresForUser(fixtureID, req.session.user.id || 1)
+    const resumeHand = savedScores.reduce((highestHand, savedScore) => {
+        return Math.max(highestHand, parseInt(savedScore.Hand) || 0)
+    }, 1)
+
+    res.render('fixtures/scorecard', {
+        teamSheet: req.session.teamSheet,
+        players: mappedPlayers,
+        fixtureInfo: fixtureInfo,
+        savedScores: savedScores,
+        resumeHand: resumeHand
+    })
 })
 
 router.post('/scorecard', async (req, res) => {
@@ -271,7 +433,10 @@ router.post('/scorecard', async (req, res) => {
                     playerId: playerId,
                     handNumber: handNumber,
                     score: sVal,
-                    bolters: bVal
+                    bolters: bVal,
+                    isFlopper: req.body[`flopper${handNumber}_${playerIndex}`] ? 1 : 0,
+                    isSquare: req.body[`square${handNumber}_${playerIndex}`] ? 1 : 0,
+                    isChance: req.body[`chance${handNumber}_${playerIndex}`] ? 1 : 0
                 })
             }
         }
@@ -289,7 +454,7 @@ router.post('/scorecard', async (req, res) => {
             if (homeScore === null || homeScore === undefined) homeScore = teamTotalScore
         }
 
-        const newStatus = (homeScore !== null && awayScore !== null) ? 'Completed' : 'In Progress'
+        const newStatus = (homeScore !== null && awayScore !== null) ? 'Provisional' : 'In Progress'
         await fixture.updateFixtureScore(gameid, homeScore, awayScore, newStatus)
 
         req.session.user.gamesInProgress = null
@@ -300,6 +465,42 @@ router.post('/scorecard', async (req, res) => {
     } catch (err) {
         console.error("Error submitting scorecard:", err)
         res.redirect('/fixtures')
+    }
+})
+
+router.post('/scorecard/approve', async (req, res) => {
+    if (!req.session.user) return res.redirect('/users/login')
+
+    try {
+        const fixtureInfo = await fixture.getFixtureInfo(req.body.gameid)
+        const userId = req.session.user.id
+        const teamId = fixtureInfo && fixtureInfo.homeCaptainId === userId
+            ? fixtureInfo.homeTeamID
+            : fixtureInfo && fixtureInfo.awayCaptainId === userId
+                ? fixtureInfo.awayTeamID
+                : null
+        if (!teamId) return res.status(403).send('Only the assigned team captain can approve these scores.')
+
+        await fixture.approveFixture(req.body.gameid, teamId, userId)
+        res.redirect(`/fixtures/scorecard?gameid=${encodeURIComponent(req.body.gameid)}`)
+    } catch (error) {
+        console.error(error)
+        res.status(400).send(error.message)
+    }
+})
+
+router.post('/scorecard/confirm', async (req, res) => {
+    if (!req.session.user) return res.redirect('/users/login')
+    if (req.session.user.access !== 'dev' && req.session.user.access !== 'LeagueSecretary') {
+        return res.status(403).send('Only a league secretary can confirm scores.')
+    }
+
+    try {
+        await fixture.confirmFixture(req.body.gameid)
+        res.redirect(`/fixtures/scorecard?gameid=${encodeURIComponent(req.body.gameid)}`)
+    } catch (error) {
+        console.error(error)
+        res.status(400).send(error.message)
     }
 })
 
@@ -319,14 +520,14 @@ router.post('/scorecard/entry', async (req, res) => {
         const gameid = req.session.user.gamesInProgress;
         const userid = req.session.user.id || req.user.id;
         const teamid = req.session.user.Team;
-        const { handNumber, playerIndex, score, bolters } = req.body;
+        const { handNumber, playerIndex, score, bolters, isFlopper, isSquare, isChance } = req.body;
 
         let playerId = null;
         if (req.session.teamSheet && req.session.teamSheet[playerIndex]) {
             playerId = req.session.teamSheet[playerIndex] === 'null' ? null : parseInt(req.session.teamSheet[playerIndex]);
         }
 
-        await fixture.saveTempScore(gameid, userid, handNumber, teamid, playerId, playerIndex, score || 0, bolters || 0);
+        await fixture.saveTempScore(gameid, userid, handNumber, teamid, playerId, playerIndex, score || 0, bolters || 0, isFlopper ? 1 : 0, isSquare ? 1 : 0, isChance ? 1 : 0);
         res.status(200).send("Saved");
     } catch (err) {
         console.error("Error saving score", err);

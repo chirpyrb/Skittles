@@ -16,7 +16,7 @@
 .scorecard-container {
     max-width: 900px;
     margin: 0 auto;
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-family: Arial, Helvetica, sans-serif;
 }
 
 /* Stepper Header */
@@ -54,6 +54,48 @@
 
 .step-pill.completed {
     color: var(--success-color);
+}
+
+.live-hand-totals {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 10px 12px;
+    overflow-x: auto;
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+}
+
+.live-hand-totals-title {
+    margin-right: 4px;
+    color: var(--text-dark);
+    white-space: nowrap;
+}
+
+.live-hand-total {
+    min-width: 52px;
+    padding: 6px 8px;
+    color: var(--text-muted);
+    text-align: center;
+    border-left: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.live-hand-total-value {
+    display: block;
+    color: var(--text-dark);
+    font-size: 1.1em;
+}
+
+.live-hand-grand-total {
+    min-width: 68px;
+    color: var(--primary-color);
+}
+
+.live-hand-grand-total .live-hand-total-value {
+    color: var(--primary-color);
 }
 
 /* Steps */
@@ -271,4 +313,26 @@
 .btn-success:hover {
     transform: translateY(-1px);
     box-shadow: var(--shadow-lg);
+}
+
+.event-input-cell {
+    text-align: center;
+}
+
+.event-checkbox {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: .72em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.event-checkbox input {
+    width: 16px;
+    height: 16px;
+    min-height: 0;
+    accent-color: var(--primary-color);
 }

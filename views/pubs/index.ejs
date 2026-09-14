@@ -1,14 +1,30 @@
-<h2>Pub directory</h2>
+<div class="directory-toolbar">
+    <h2>Pub directory</h2>
+    <div class="directory-actions">
+        <% if (user && (user.access === 'dev' || user.access === 'LeagueSecretary')) { %>
+            <a href="/pubs/bulk-upload" role="button">Bulk upload pubs</a>
+        <% } %>
+        <a href="/pubs/new" role="button">Add pub</a>
+    </div>
+</div>
 <form action="/pubs" method="GET">
     <label>Pub name</label>
     <input type="text" name="pubSearchName">
     <button type="submit">Search</button>
 </form>
-<br>
-
-<% pubListArray.forEach(pub => { %>
-    <div><%= pub.name %></div>
-<% }) %>
-
-<br>
-<a href="/pubs/new">Add new pub</a>
+<div class="directory-list">
+    <% pubListArray.forEach(pub => { %>
+        <div class="directory-item directory-item-row">
+            <div>
+                <strong><%= pub.name %></strong>
+                <div class="muted"><%= pub.location || 'Location not set' %></div>
+            </div>
+            <% if (pub.location) { %>
+                <iframe class="pub-map" src="https://www.google.com/maps?q=<%= encodeURIComponent(pub.location) %>&output=embed" title="Map of <%= pub.name %>" loading="lazy"></iframe>
+            <% } %>
+            <% if (user && ['dev', 'LeagueSecretary', 'TeamSecratary', 'TeamSecretary'].includes(user.access)) { %>
+                <a href="/pubs/edit/<%= pub.id %>" role="button">Edit</a>
+            <% } %>
+        </div>
+    <% }) %>
+</div>

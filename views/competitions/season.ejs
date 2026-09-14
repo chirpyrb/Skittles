@@ -1,0 +1,23 @@
+<h2><%= seasonStartYear %>/<%= String(seasonStartYear + 1).slice(-2) %> season</h2>
+
+<% competitions.forEach(comp => { %>
+    <h3><%= comp.name %></h3>
+    <p><%= fixtures.filter(fixture => fixture.competition === comp.id).length %> fixtures</p>
+    <table>
+        <thead>
+            <tr><th>Date</th><th>Home</th><th>Score</th><th>Away</th></tr>
+        </thead>
+        <tbody>
+            <% fixtures.filter(fixture => fixture.competition === comp.id).forEach(fixture => { %>
+                <tr>
+                    <td><%= fixture.displayDate || fixture.matchDate.toLocaleDateString('en-GB') %></td>
+                    <td><%= fixture.homeTeam %></td>
+                    <td><%= fixture.homeScore ?? '-' %> - <%= fixture.awayScore ?? '-' %></td>
+                    <td><%= fixture.awayTeam %></td>
+                </tr>
+            <% }) %>
+        </tbody>
+    </table>
+<% }) %>
+
+<p><a href="/competitions">Back to seasons</a></p>

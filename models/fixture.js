@@ -16,6 +16,7 @@ async function initTable() {
         FOREIGN KEY (competition) REFERENCES competitions(id))')
     try { await SQ3.execute(SQ3.db, 'ALTER TABLE Fixtures ADD COLUMN homeScore INTEGER'); } catch(e) {}
     try { await SQ3.execute(SQ3.db, 'ALTER TABLE Fixtures ADD COLUMN awayScore INTEGER'); } catch(e) {}
+    await SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS FixtureApprovals (fixtureId INTEGER NOT NULL, teamId INTEGER NOT NULL, userId INTEGER NOT NULL, approvedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (fixtureId, teamId), FOREIGN KEY (fixtureId) REFERENCES Fixtures(id), FOREIGN KEY (teamId) REFERENCES Teams(id), FOREIGN KEY (userId) REFERENCES Users(id))')
 }
 
 async function getAllFixtures() {
@@ -27,15 +28,31 @@ async function getAllFixtures() {
         Fixtures.awayScore, \
         Home.id as homeTeamID, \
         Away.id as awayTeamID, \
-        Home.teamName AS homeTeam, \
-        Away.teamName AS awayTeam, \
-        Home.home_night AS matchDay, \
+        COALESCE(Home.teamName, 'BYE') AS homeTeam, \
+        COALESCE(Away.teamName, 'BYE') AS awayTeam, \
+        CASE WHEN Fixtures.status = 'Bye' THEN 1 ELSE COALESCE(Home.home_night, Away.home_night, 1) END AS matchDay, \
         matchDate, \
-        competition \
+        Fixtures.competition, \
+        Competitions.division, \
+        Divisions.name AS divisionName \
         FROM Fixtures \
-        INNER JOIN Teams Home ON Home.id = Fixtures.homeTeam \
-        INNER JOIN Teams Away ON Away.id = Fixtures.awayTeam \
+        LEFT JOIN Teams Home ON Home.id = Fixtures.homeTeam \
+        LEFT JOIN Teams Away ON Away.id = Fixtures.awayTeam \
+        LEFT JOIN Competitions ON Competitions.id = Fixtures.competition \
+        LEFT JOIN Divisions ON Divisions.id = Competitions.division \
         ;")
+
+    // Scan existing temporary score tables once instead of once per fixture.
+    const liveTotals = await getLiveScoreTotals()
+    for (const currentFixture of fixtureList) {
+        const fixtureTotals = liveTotals[currentFixture.id] || {}
+        if (currentFixture.homeScore === null || currentFixture.homeScore === undefined) {
+            currentFixture.homeScore = fixtureTotals[currentFixture.homeTeamID] ?? null
+        }
+        if (currentFixture.awayScore === null || currentFixture.awayScore === undefined) {
+            currentFixture.awayScore = fixtureTotals[currentFixture.awayTeamID] ?? null
+        }
+    }
 
     // SQLITE doesnt have a specific date type.
     // So format it here so we can sort later.
@@ -52,14 +69,18 @@ async function getAllFixturesByTeamID(teamID) {
         Fixtures.awayScore, \
         Home.id as homeTeamID, \
         Away.id as awayTeamID, \
-        Home.teamName AS homeTeam, \
-        Away.teamName AS awayTeam, \
-        Home.home_night AS matchDay, \
+        COALESCE(Home.teamName, 'BYE') AS homeTeam, \
+        COALESCE(Away.teamName, 'BYE') AS awayTeam, \
+        CASE WHEN Fixtures.status = 'Bye' THEN 1 ELSE COALESCE(Home.home_night, Away.home_night, 1) END AS matchDay, \
         matchDate, \
-        competition \
+        Fixtures.competition, \
+        Competitions.division, \
+        Divisions.name AS divisionName \
         FROM Fixtures \
-        INNER JOIN Teams Home ON Home.id = Fixtures.homeTeam \
-        INNER JOIN Teams Away ON Away.id = Fixtures.awayTeam \
+        LEFT JOIN Teams Home ON Home.id = Fixtures.homeTeam \
+        LEFT JOIN Teams Away ON Away.id = Fixtures.awayTeam \
+        LEFT JOIN Competitions ON Competitions.id = Fixtures.competition \
+        LEFT JOIN Divisions ON Divisions.id = Competitions.division \
         WHERE Fixtures.homeTeam = ? OR Fixtures.awayTeam = ?;",
         [teamID, teamID])
 
@@ -122,6 +143,28 @@ function groupFixturesByMonth(fixtureList) {
 
         groupedFixtures[monthKey].days[sortableDate].fixtures.push(f)
     }
+
+    Object.values(groupedFixtures).forEach(month => {
+        Object.values(month.days).forEach(day => {
+            day.fixtures.sort((first, second) => {
+                const divisionCompare = (first.divisionName || 'Unassigned').localeCompare(second.divisionName || 'Unassigned', undefined, { numeric: true })
+                if (divisionCompare !== 0) return divisionCompare
+                return (first.homeTeam || '').localeCompare(second.homeTeam || '')
+            })
+
+            day.divisionGroups = []
+            day.fixtures.forEach(currentFixture => {
+                const divisionName = currentFixture.divisionName || 'Unassigned division'
+                let divisionGroup = day.divisionGroups.find(group => group.name === divisionName)
+                if (!divisionGroup) {
+                    divisionGroup = { name: divisionName, fixtures: [] }
+                    day.divisionGroups.push(divisionGroup)
+                }
+                divisionGroup.fixtures.push(currentFixture)
+            })
+        })
+    })
+
     return groupedFixtures
 }
 
@@ -139,6 +182,8 @@ async function getFixtureInfo(id) {
         Home.teamName AS homeTeam, \
         Away.id AS awayTeamID, \
         Away.teamName AS awayTeam, \
+        Home.captainId AS homeCaptainId, \
+        Away.captainId AS awayCaptainId, \
         matchDate, \
         status, \
         homeScore, \
@@ -191,10 +236,157 @@ async function beginGame(gameid, userid) {
     }
 }
 
-async function createFixture(homeTeam, awayTeam, matchDate, comp) {
-    return await SQ3.execute(SQ3.db, 'INSERT INTO Fixtures(homeTeam,awayTeam,matchDate,competition) VALUES (?,?,?,?);', [homeTeam, awayTeam, matchDate, comp])
+async function createFixture(homeTeam, awayTeam, matchDate, comp, status = null) {
+    return await SQ3.execute(SQ3.db, 'INSERT INTO Fixtures(homeTeam,awayTeam,matchDate,competition,status) VALUES (?,?,?,?,?);', [homeTeam, awayTeam, matchDate, comp, status])
 }
-async function saveTempScore(gameid, userid, hand, teamid, playerid, position, score, bolters) {
+
+function parseCSVLine(line) {
+    const columns = []
+    let value = ''
+    let quoted = false
+
+    for (let i = 0; i < line.length; i++) {
+        const character = line[i]
+        if (character === '"') {
+            if (quoted && line[i + 1] === '"') {
+                value += '"'
+                i++
+            } else {
+                quoted = !quoted
+            }
+        } else if (character === ',' && !quoted) {
+            columns.push(value.trim())
+            value = ''
+        } else {
+            value += character
+        }
+    }
+
+    if (quoted) throw new Error('A CSV value has an unmatched quote.')
+    columns.push(value.trim())
+    return columns
+}
+
+function parseMondayDate(value) {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!match) return null
+
+    const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+    if (date.getUTCFullYear() !== Number(match[1]) ||
+        date.getUTCMonth() !== Number(match[2]) - 1 ||
+        date.getUTCDate() !== Number(match[3]) ||
+        date.getUTCDay() !== 1) {
+        return null
+    }
+
+    return value
+}
+
+async function importFixturesFromCSVContent(csvContent, competitionIds, divisionModel, teamModel) {
+    const rows = csvContent.replace(/^\uFEFF/, '').split(/\r?\n/).filter(line => line.trim())
+    const errors = []
+    const fixtures = []
+    const uploadedFixtureKeys = new Set()
+
+    rows.forEach((line, index) => {
+        let columns
+        try {
+            columns = parseCSVLine(line)
+        } catch (error) {
+            errors.push(`Row ${index + 1}: ${error.message}`)
+            return
+        }
+
+        if (index === 0 && columns[0].toLowerCase() === 'division') return
+        if (columns.length !== 4 || columns.some(column => !column)) {
+            errors.push(`Row ${index + 1}: expected division, Monday date, home team, away team.`)
+            return
+        }
+
+        const [divisionName, monday, homeTeamName, awayTeamName] = columns
+        const homeIsBye = homeTeamName.toUpperCase() === 'BYE'
+        const awayIsBye = awayTeamName.toUpperCase() === 'BYE'
+        if (homeIsBye && awayIsBye) {
+            errors.push(`Row ${index + 1}: home and away teams cannot both be BYE.`)
+            return
+        }
+        const parsedMonday = parseMondayDate(monday)
+        if (!parsedMonday) {
+            errors.push(`Row ${index + 1}: '${monday}' must be a valid Monday in YYYY-MM-DD format.`)
+            return
+        }
+
+        fixtures.push({ index, divisionName, monday: parsedMonday, homeTeamName, awayTeamName })
+    })
+
+    for (const row of fixtures) {
+        const division = await divisionModel.getDivisionByName(row.divisionName)
+        const homeTeam = row.homeTeamName.toUpperCase() === 'BYE' ? null : await teamModel.getTeamForFixtureByName(row.homeTeamName)
+        const awayTeam = row.awayTeamName.toUpperCase() === 'BYE' ? null : await teamModel.getTeamForFixtureByName(row.awayTeamName)
+
+        if (!division) errors.push(`Row ${row.index + 1}: division '${row.divisionName}' was not found.`)
+        if (!homeTeam && row.homeTeamName.toUpperCase() !== 'BYE') errors.push(`Row ${row.index + 1}: home team '${row.homeTeamName}' was not found.`)
+        if (!awayTeam && row.awayTeamName.toUpperCase() !== 'BYE') errors.push(`Row ${row.index + 1}: away team '${row.awayTeamName}' was not found.`)
+        if ((!homeTeam && row.homeTeamName.toUpperCase() !== 'BYE') || (!awayTeam && row.awayTeamName.toUpperCase() !== 'BYE') || !division) continue
+
+        const realTeam = homeTeam || awayTeam
+        if (realTeam.division !== division.id) {
+            errors.push(`Row ${row.index + 1}: team '${realTeam.teamName}' is not in '${row.divisionName}'.`)
+        }
+        if (!Number.isInteger(realTeam.home_night) || realTeam.home_night < 1 || realTeam.home_night > 7) {
+            errors.push(`Row ${row.index + 1}: team '${realTeam.teamName}' has no valid home night.`)
+        }
+        if (homeTeam && awayTeam && homeTeam.division !== division.id) {
+            errors.push(`Row ${row.index + 1}: home team '${row.homeTeamName}' is not in '${row.divisionName}'.`)
+        }
+        if (homeTeam && awayTeam && awayTeam.division !== division.id) {
+            errors.push(`Row ${row.index + 1}: away team '${row.awayTeamName}' is not in '${row.divisionName}'.`)
+        }
+
+        const resolvedRow = {
+            ...row,
+            division,
+            homeTeam,
+            awayTeam,
+            competitionId: competitionIds[division.id],
+            playedDate: row.homeTeamName.toUpperCase() === 'BYE'
+                ? row.monday
+                : new Date(Date.UTC(Number(row.monday.slice(0, 4)), Number(row.monday.slice(5, 7)) - 1, Number(row.monday.slice(8, 10)) + homeTeam.home_night - 1)).toISOString().slice(0, 10),
+            status: row.homeTeamName.toUpperCase() === 'BYE' || row.awayTeamName.toUpperCase() === 'BYE' ? 'Bye' : null
+        }
+
+        if (!resolvedRow.competitionId) {
+            errors.push(`Row ${row.index + 1}: no competition exists for '${row.divisionName}' in the active season.`)
+        }
+
+        const fixtureKey = `${resolvedRow.competitionId}|${homeTeam ? homeTeam.id : 'BYE'}|${awayTeam ? awayTeam.id : 'BYE'}|${row.monday}`
+        if (uploadedFixtureKeys.has(fixtureKey)) {
+            errors.push(`Row ${row.index + 1}: duplicate fixture for '${row.homeTeamName}' vs '${row.awayTeamName}' on ${row.monday}.`)
+        } else if (resolvedRow.competitionId) {
+            const existingFixture = await SQ3.fetchFirst(
+                SQ3.db,
+                'SELECT id FROM Fixtures WHERE competition = ? AND homeTeam IS ? AND awayTeam IS ? AND matchDate = ?',
+                [resolvedRow.competitionId, homeTeam ? homeTeam.id : null, awayTeam ? awayTeam.id : null, row.monday]
+            )
+            if (existingFixture) {
+                errors.push(`Row ${row.index + 1}: duplicate fixture for '${row.homeTeamName}' vs '${row.awayTeamName}' on ${row.monday}.`)
+            }
+        }
+
+        uploadedFixtureKeys.add(fixtureKey)
+
+        fixtures[fixtures.indexOf(row)] = resolvedRow
+    }
+
+    if (errors.length) return { imported: 0, errors }
+
+    for (const row of fixtures) {
+        await createFixture(row.homeTeam ? row.homeTeam.id : null, row.awayTeam ? row.awayTeam.id : null, row.monday, row.competitionId, row.status)
+    }
+
+    return { imported: fixtures.length, errors: [] }
+}
+async function saveTempScore(gameid, userid, hand, teamid, playerid, position, score, bolters, isFlopper = 0, isSquare = 0, isChance = 0) {
     const tableName = `temptable_scores${gameid}_user${userid}`;
 
     // Ensure table exists just in case
@@ -214,16 +406,16 @@ async function saveTempScore(gameid, userid, hand, teamid, playerid, position, s
 
     const existing = await SQ3.fetchFirst(SQ3.db, `SELECT id FROM ${tableName} WHERE Hand = ? AND Position = ?`, [hand, position]);
     if (existing) {
-        await SQ3.execute(SQ3.db, `UPDATE ${tableName} SET Player = ?, Score = ?, Bolters = ? WHERE id = ?`, [playerid, score, bolters, existing.id]);
+        await SQ3.execute(SQ3.db, `UPDATE ${tableName} SET Player = ?, Score = ?, Bolters = ?, isFlopper = ?, isSquare = ?, isChance = ? WHERE id = ?`, [playerid, score, bolters, isFlopper, isSquare, isChance, existing.id]);
     } else {
-        await SQ3.execute(SQ3.db, `INSERT INTO ${tableName} (Fixture, Hand, Team, Player, Position, Score, Bolters) VALUES (?, ?, ?, ?, ?, ?, ?)`, [gameid, hand, teamid, playerid, position, score, bolters]);
+        await SQ3.execute(SQ3.db, `INSERT INTO ${tableName} (Fixture, Hand, Team, Player, Position, Score, Bolters, isFlopper, isSquare, isChance) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [gameid, hand, teamid, playerid, position, score, bolters, isFlopper, isSquare, isChance]);
     }
 }
 
 async function getAllScoresForFixture(gameid) {
     // Finds all temp score tables for a given game ID and aggregates the scores.
     const tables = await SQ3.fetchAll(SQ3.db, `SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'temptable\\_scores${gameid}\\_user%' ESCAPE '\\'`);
-    let allScores = [];
+    const scoresByEntry = new Map();
     if (tables) {
         for (const table of tables) {
             const scores = await SQ3.fetchAll(SQ3.db, `
@@ -234,11 +426,28 @@ async function getAllScoresForFixture(gameid) {
                 ORDER BY s.Hand ASC, s.Position ASC
             `);
             if (scores && scores.length) {
-                allScores = allScores.concat(scores);
+                for (const score of scores) {
+                    const entryKey = `${score.Team}_${score.Position}_${score.Hand}`;
+                    scoresByEntry.set(entryKey, score);
+                }
             }
         }
     }
-    return allScores;
+    return Array.from(scoresByEntry.values()).sort((a, b) => {
+        return a.Hand - b.Hand || a.Position - b.Position
+    });
+}
+
+async function getTempScoresForUser(gameid, userid) {
+    const tableName = `temptable_scores${parseInt(gameid)}_user${parseInt(userid)}`;
+    const table = await SQ3.fetchFirst(SQ3.db,
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`,
+        tableName)
+
+    if (!table) return []
+
+    return await SQ3.fetchAll(SQ3.db,
+        `SELECT Hand, Team, Player, Position, Score, Bolters, isFlopper, isSquare, isChance FROM ${tableName} ORDER BY Hand ASC, Position ASC`)
 }
 
 async function importFixturesFromCSV(csvFilePath, compID = 1) {
@@ -320,6 +529,79 @@ async function updateFixtureScore(gameid, homeScore, awayScore, status = 'Comple
     return await SQ3.execute(SQ3.db, sql, params);
 }
 
+async function getFixtureApprovalStatus(fixtureId) {
+    await initTable()
+    return await SQ3.fetchFirst(SQ3.db, `
+        SELECT f.id, f.status, f.homeTeam, f.awayTeam,
+            Home.captainId AS homeCaptainId,
+            Away.captainId AS awayCaptainId,
+            homeApproval.userId AS homeApprovedBy,
+            awayApproval.userId AS awayApprovedBy,
+            homeApproval.approvedAt AS homeApprovedAt,
+            awayApproval.approvedAt AS awayApprovedAt
+        FROM Fixtures f
+        LEFT JOIN Teams Home ON Home.id = f.homeTeam
+        LEFT JOIN Teams Away ON Away.id = f.awayTeam
+        LEFT JOIN FixtureApprovals homeApproval ON homeApproval.fixtureId = f.id AND homeApproval.teamId = f.homeTeam
+        LEFT JOIN FixtureApprovals awayApproval ON awayApproval.fixtureId = f.id AND awayApproval.teamId = f.awayTeam
+        WHERE f.id = ?`, [fixtureId])
+}
+
+async function approveFixture(fixtureId, teamId, userId) {
+    const fixtureInfo = await getFixtureInfo(fixtureId)
+    if (!fixtureInfo || (fixtureInfo.homeTeamID !== teamId && fixtureInfo.awayTeamID !== teamId)) {
+        throw new Error('User team is not part of this fixture.')
+    }
+    if (fixtureInfo.status !== 'Provisional') throw new Error('Only provisional scores can be approved.')
+    await SQ3.execute(SQ3.db,
+        'INSERT OR REPLACE INTO FixtureApprovals(fixtureId, teamId, userId) VALUES (?,?,?)',
+        [fixtureId, teamId, userId])
+}
+
+async function confirmFixture(fixtureId) {
+    const approval = await getFixtureApprovalStatus(fixtureId)
+    if (!approval || approval.status !== 'Provisional' || !approval.homeApprovedBy || !approval.awayApprovedBy) {
+        throw new Error('Both team captains must approve the provisional scores first.')
+    }
+    await SQ3.execute(SQ3.db, 'UPDATE Fixtures SET status = "Confirmed" WHERE id = ?', [fixtureId])
+}
+
+async function generateSeasonFixtures(seasonId, seasonStartDateStr = '2026-09-07') {
+    const divisions = [1, 2, 3];
+    let createdCount = 0;
+
+    let baseDate = new Date(seasonStartDateStr);
+    if (isNaN(baseDate.getTime())) {
+        baseDate = new Date('2026-09-07');
+    }
+
+    for (const divId of divisions) {
+        const teams = await SQ3.fetchAll(SQ3.db, 'SELECT id FROM Teams WHERE division = ?', [divId]);
+        if (!teams || teams.length < 2) continue;
+
+        const teamIds = teams.map(t => t.id);
+        const pairs = [];
+
+        for (let i = 0; i < teamIds.length; i++) {
+            for (let j = 0; j < teamIds.length; j++) {
+                if (i !== j) {
+                    pairs.push({ home: teamIds[i], away: teamIds[j] });
+                }
+            }
+        }
+
+        let matchDate = new Date(baseDate);
+        for (let k = 0; k < pairs.length; k++) {
+            const dateStr = matchDate.toISOString().split('T')[0];
+            await createFixture(pairs[k].home, pairs[k].away, dateStr, seasonId);
+            createdCount++;
+            matchDate.setDate(matchDate.getDate() + 7);
+        }
+    }
+
+    return createdCount;
+}
+
 module.exports = {
     initTable,
     getAllFixtures,
@@ -327,9 +609,36 @@ module.exports = {
     getFixtureInfo,
     beginGame,
     createFixture,
+    importFixturesFromCSVContent,
     saveTempScore,
     getAllScoresForFixture,
+    getTempScoresForUser,
     importFixturesFromCSV,
     groupFixturesByMonth,
-    updateFixtureScore
+    updateFixtureScore,
+    getFixtureApprovalStatus,
+    approveFixture,
+    confirmFixture,
+    generateSeasonFixtures
+}
+
+async function getLiveScoreTotals() {
+    const tables = await SQ3.fetchAll(SQ3.db, `
+        SELECT name FROM sqlite_master
+        WHERE type = 'table' AND name LIKE 'temptable\\_scores%\\_user%' ESCAPE '\\'`)
+    const entries = new Map()
+
+    for (const table of tables) {
+        const scores = await SQ3.fetchAll(SQ3.db,
+            `SELECT Fixture, Team, Position, Hand, Score FROM ${table.name}`)
+        for (const score of scores) {
+            entries.set(`${score.Fixture}_${score.Team}_${score.Position}_${score.Hand}`, score)
+        }
+    }
+
+    return Array.from(entries.values()).reduce((totals, score) => {
+        if (!totals[score.Fixture]) totals[score.Fixture] = {}
+        totals[score.Fixture][score.Team] = (totals[score.Fixture][score.Team] || 0) + (parseInt(score.Score) || 0)
+        return totals
+    }, {})
 }

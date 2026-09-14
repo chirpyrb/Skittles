@@ -13,9 +13,24 @@ router.get('/', async (req, res) => {
     }
 })
 
+router.get('/:seasonStartYear', async (req, res) => {
+    const seasonStartYear = Number(req.params.seasonStartYear)
+    if (!Number.isInteger(seasonStartYear)) return res.redirect('/competitions')
+
+    const competitions = (await competition.getAllCompetitions())
+        .filter(currentCompetition => currentCompetition.seasonStartYear === seasonStartYear)
+    if (!competitions.length) return res.status(404).send('Season not found')
+
+    const fixtureModel = require('../models/fixture')
+    const allFixtures = await fixtureModel.getAllFixtures()
+    const competitionIds = new Set(competitions.map(currentCompetition => currentCompetition.id))
+    const fixtures = allFixtures.filter(currentFixture => competitionIds.has(currentFixture.competition))
+    res.render('competitions/season', { seasonStartYear, competitions, fixtures })
+})
+
 // New season
 router.get('/new', async (req, res) => {
-    res.render('competitions/new')
+    res.redirect('/competitions')
 })
 
 // Create season.

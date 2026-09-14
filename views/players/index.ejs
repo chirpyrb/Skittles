@@ -1,30 +1,48 @@
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+<div class="directory-toolbar">
     <h2>Player Directory</h2>
-    <a href="/players/new" style="text-decoration: none; padding: 8px 16px; background: #28a745; color: white; border-radius: 4px; font-weight: bold;">+ Add New Player</a>
+    <div class="directory-actions">
+        <a href="/players/new" role="button">Add player</a>
+        <% if (user && (user.access === 'dev' || user.access === 'LeagueSecretary')) { %>
+            <a href="/players/bulk-upload" role="button">Bulk upload players</a>
+        <% } %>
+    </div>
 </div>
 
 <% if (playerList && playerList.length > 0) { %>
-    <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+    <table>
         <thead>
-            <tr style="background-color: #f2f2f2; text-align: left;">
-                <th style="padding: 8px;">Name</th>
-                <th style="padding: 8px;">Alias</th>
-                <th style="padding: 8px;">Team</th>
+            <tr>
+                <th>Name</th>
+                <th>Alias</th>
+                <th>Team</th>
+                <th>Status</th>
+                <% if (user && ['dev', 'LeagueSecretary'].includes(user.access)) { %>
+                    <th>Action</th>
+                <% } %>
             </tr>
         </thead>
         <tbody>
             <% playerList.forEach(p => { %>
                 <tr>
-                    <td style="padding: 8px; font-weight: bold;"><%= p.firstName %> <%= p.secondName %></td>
-                    <td style="padding: 8px;"><%= p.alias %></td>
-                    <td style="padding: 8px;"><%= p.teamName || '-' %></td>
+                    <td><strong><%= p.firstName %> <%= p.secondName %></strong></td>
+                    <td><%= p.alias %></td>
+                    <td><%= p.teamName || '-' %></td>
+                    <td><%= p.approved ? 'Approved' : 'Pending approval' %></td>
+                    <% if (user && ['dev', 'LeagueSecretary'].includes(user.access)) { %>
+                        <td>
+                            <% if (!p.approved) { %>
+                                <form action="/players/approve/<%= p.id %>" method="post">
+                                    <button type="submit">Approve</button>
+                                </form>
+                            <% } else { %>
+                                -
+                            <% } %>
+                        </td>
+                    <% } %>
                 </tr>
             <% }) %>
         </tbody>
     </table>
 <% } else { %>
-    <p style="color: #666; font-style: italic; margin-top: 15px;">No players are currently registered in the database.</p>
+    <p class="muted">No players are currently registered in the database.</p>
 <% } %>
-
-<br>
-<a href="/players/new" style="text-decoration: none; display: inline-block; padding: 8px 16px; background: #28a745; color: white; border-radius: 4px; font-weight: bold;">+ Add New Player</a>

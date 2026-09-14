@@ -1,3 +1,4 @@
+<% const savedEntry = (savedScores || []).find(entry => entry.Hand == handNumber && entry.Position == playerIndex) || {}; %>
 <tr class="player-entry-row">
     <td>
         <div class="player-info">
@@ -11,11 +12,37 @@
     </td>
     <td style="text-align: center;">
         <input type="number" min="0" max="27" class="score-input-field input score hand-<%= handNumber %> player-<%= playerIndex %>"
-            name="score<%= handNumber %>_<%= playerIndex %>" id="score<%= handNumber %>_<%= playerIndex %>" placeholder="0">
+            name="score<%= handNumber %>_<%= playerIndex %>" id="score<%= handNumber %>_<%= playerIndex %>" placeholder="0"
+            value="<%= savedEntry.Score ?? '' %>">
     </td>
     <td style="text-align: center;">
         <input type="number" min="0" class="bolters-input-field input bolters hand-<%= handNumber %> player-<%= playerIndex %>"
-            name="bolters<%= handNumber %>_<%= playerIndex %>" id="bolters<%= handNumber %>_<%= playerIndex %>" placeholder="0">
+            name="bolters<%= handNumber %>_<%= playerIndex %>" id="bolters<%= handNumber %>_<%= playerIndex %>" placeholder="0"
+            value="<%= savedEntry.Bolters ?? '' %>">
+    </td>
+    <td class="event-input-cell">
+        <label class="event-checkbox">
+            <input type="checkbox" class="input event flopper hand-<%= handNumber %> player-<%= playerIndex %>"
+                name="flopper<%= handNumber %>_<%= playerIndex %>" id="flopper<%= handNumber %>_<%= playerIndex %>"
+                <%= savedEntry.isFlopper ? 'checked' : '' %>>
+            <span>Flopper</span>
+        </label>
+    </td>
+    <td class="event-input-cell">
+        <label class="event-checkbox">
+            <input type="checkbox" class="input event square hand-<%= handNumber %> player-<%= playerIndex %>"
+                name="square<%= handNumber %>_<%= playerIndex %>" id="square<%= handNumber %>_<%= playerIndex %>"
+                <%= savedEntry.isSquare ? 'checked' : '' %>>
+            <span>Square</span>
+        </label>
+    </td>
+    <td class="event-input-cell">
+        <label class="event-checkbox">
+            <input type="checkbox" class="input event chance hand-<%= handNumber %> player-<%= playerIndex %>"
+                name="chance<%= handNumber %>_<%= playerIndex %>" id="chance<%= handNumber %>_<%= playerIndex %>"
+                <%= savedEntry.isChance ? 'checked' : '' %>>
+            <span>Chance</span>
+        </label>
     </td>
     <td style="text-align: center;">
         <span class="running-total-badge running-total player-<%= playerIndex %> hand-<%= handNumber %>">0</span>

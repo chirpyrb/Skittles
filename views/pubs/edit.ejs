@@ -1,0 +1,18 @@
+<div class="page-heading">
+    <h2>Edit pub</h2>
+</div>
+
+<form action="/pubs/edit/<%= pub.id %>" method="post" class="bulk-upload-panel">
+    <label>
+        Pub name
+        <input type="text" name="name" value="<%= pub.name %>" required>
+    </label>
+    <label>
+        Location
+        <input type="text" name="location" value="<%= pub.location %>" placeholder="Address or postcode" required>
+    </label>
+    <div class="directory-actions">
+        <a href="/pubs" role="button">Cancel</a>
+        <button type="submit">Save pub</button>
+    </div>
+</form>

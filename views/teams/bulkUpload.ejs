@@ -1,0 +1,5 @@
+<h2>Bulk upload teams</h2>
+<p>CSV columns: <code>teamName, alleyName, divisionName, homeNight</code></p>
+<p><code>homeNight</code> uses Monday = 1 through Sunday = 7.</p>
+<%- include('../partials/bulkUploadForm', { action: '/teams/bulk-upload', imported: imported, errors: errors }) %>
+<p><a href="/teams">Back to teams</a></p>

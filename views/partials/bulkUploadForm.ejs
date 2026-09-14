@@ -1,0 +1,22 @@
+<% if (errors && errors.length) { %>
+    <div role="alert">
+        <strong>No records were imported.</strong>
+        <ul>
+            <% errors.forEach(error => { %>
+                <li><%= error %></li>
+            <% }) %>
+        </ul>
+    </div>
+<% } %>
+
+<% if (imported !== null && !errors.length) { %>
+    <p role="status"><%= imported %> record<%= imported === 1 ? '' : 's' %> imported successfully.</p>
+<% } %>
+
+<div class="bulk-upload-panel">
+    <form action="<%= action %>" method="post" enctype="multipart/form-data">
+        <label for="csvFile">CSV file:</label>
+        <input id="csvFile" name="csvFile" type="file" accept=".csv,text/csv" required>
+        <button type="submit">Upload CSV</button>
+    </form>
+</div>

@@ -40,6 +40,35 @@
         </a>
     </div>
 <% } %>
+
+<% if (approval && approval.status === 'Provisional') { %>
+    <div class="approval-panel">
+        <h3>Score approval</h3>
+        <p>Both team captains must approve these provisional scores before the league secretary can confirm them.</p>
+        <ul>
+            <li>Home captain: <%= approval.homeApprovedBy ? 'Approved' : 'Awaiting approval' %></li>
+            <li>Away captain: <%= approval.awayApprovedBy ? 'Approved' : 'Awaiting approval' %></li>
+        </ul>
+
+        <% const isHomeCaptain = user && approval.homeCaptainId == user.id; %>
+        <% const isAwayCaptain = user && approval.awayCaptainId == user.id; %>
+        <% if ((isHomeCaptain && !approval.homeApprovedBy) || (isAwayCaptain && !approval.awayApprovedBy)) { %>
+            <form action="/fixtures/scorecard/approve" method="post">
+                <input type="hidden" name="gameid" value="<%= gameInfo.id %>">
+                <button type="submit">Approve scores</button>
+            </form>
+        <% } %>
+
+        <% if (user && (user.access === 'LeagueSecretary' || user.access === 'dev') && approval.homeApprovedBy && approval.awayApprovedBy) { %>
+            <form action="/fixtures/scorecard/confirm" method="post">
+                <input type="hidden" name="gameid" value="<%= gameInfo.id %>">
+                <button type="submit">Confirm scores</button>
+            </form>
+        <% } %>
+    </div>
+<% } else if (approval && approval.status === 'Confirmed') { %>
+    <p class="confirmed-score-status">Scores confirmed by the league.</p>
+<% } %>
 <div>
     <nav>
         <li>Teams</li>
@@ -67,6 +96,9 @@
                     <th>Hand 1</th>
                     <th>Hand 2</th>
                     <th>Hand 3</th>
+                    <th>Floppers</th>
+                    <th>Squares</th>
+                    <th>Chances</th>
                     <th>Hand 4</th>
                     <th>Hand 5</th>
                     <th>Hand 6</th>
@@ -80,6 +112,9 @@
                         <td>
                             <strong>
                                 <%= s.playerName %>
+                        <td><%= s.floppers %></td>
+                        <td><%= s.squares %></td>
+                        <td><%= s.chances %></td>
                             </strong><br><small>(<%= s.teamName %>)</small>
                         </td>
                         <td>

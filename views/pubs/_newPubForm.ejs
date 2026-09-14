@@ -1,2 +1,4 @@
 <label>Name:</label>
-<input type="text" name="newName" value="<%= newName.name %>">
+<input type="text" name="newName" value="<%= newName.name %>" required>
+<label>Location:</label>
+<input type="text" name="location" value="<%= newName.location || '' %>" placeholder="Address or postcode" required>

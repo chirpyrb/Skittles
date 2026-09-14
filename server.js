@@ -55,6 +55,7 @@ const divRouter = require('./routes/divisions')
 const playerRouter = require('./routes/players')
 const seasonsRouter = require('./routes/competitions')
 const fixtureRouter = require('./routes/fixtures')
+const SQ3 = require('./models/sql')
 
 
 app.use('/', indexRouter)
@@ -67,24 +68,36 @@ app.use('/competitions', seasonsRouter)
 app.use('/fixtures', fixtureRouter)
 app.use('/users', require('./routes/users'))
 
-// Initialize all model database tables
-const path = require('path')
-const modelsPath = path.join(__dirname, 'models')
-fs.readdirSync(modelsPath).forEach(file => {
-    if (file.endsWith('.js') && file !== 'sql.js') {
+async function initDatabase() {
+    const modelInitializers = [
+        ['divisions', require('./models/division').initTable],
+        ['pubs', require('./models/pub').initTable],
+        ['alleys', require('./models/alley').initTable],
+        ['teams', require('./models/team').initTable],
+        ['players', require('./models/player').initTable],
+        ['users', require('./models/user').initUserDatabase],
+        ['fixtures', require('./models/fixture').initTable],
+        ['scorecards', require('./models/scorecard').initTable],
+        ['competitions', require('./models/competition').initTable]
+    ]
+
+    for (const [name, initialize] of modelInitializers) {
         try {
-            const model = require(path.join(modelsPath, file))
-            // Find and call any exported function that begins with 'init'
-            const initFnName = Object.keys(model).find(k => k.startsWith('init'))
-            if (initFnName && typeof model[initFnName] === 'function') {
-                model[initFnName]().catch(err => console.error(`Error initializing table in ${file}:`, err))
-            }
-        } catch (err) {
-            console.error(`Failed to load or init model ${file}:`, err)
+            await initialize()
+        } catch (error) {
+            throw new Error(`Unable to initialize ${name}: ${error.message}`)
         }
     }
-})
+    await SQ3.initPerformanceIndexes()
+}
 
-https.createServer(secOpts, app).listen(process.env.PORT, () => {
-    console.log(`HTTPS Server running on https://localhost:${process.env.PORT}`)
-})
+initDatabase()
+    .then(() => {
+        https.createServer(secOpts, app).listen(process.env.PORT, () => {
+            console.log(`HTTPS Server running on https://localhost:${process.env.PORT}`)
+        })
+    })
+    .catch(error => {
+        console.error('Database initialization failed:', error)
+        process.exitCode = 1
+    })

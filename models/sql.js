@@ -38,4 +38,17 @@ const fetchFirst = async (db, sql, params = []) => {
   });
 };
 
-module.exports = {db, execute, fetchAll, fetchFirst}
+const initPerformanceIndexes = async () => {
+  const indexes = [
+    'CREATE INDEX IF NOT EXISTS idx_fixtures_competition ON Fixtures(competition)',
+    'CREATE INDEX IF NOT EXISTS idx_fixtures_home_team ON Fixtures(homeTeam)',
+    'CREATE INDEX IF NOT EXISTS idx_fixtures_away_team ON Fixtures(awayTeam)',
+    'CREATE INDEX IF NOT EXISTS idx_players_team_approved ON Players(team, approved)',
+    'CREATE INDEX IF NOT EXISTS idx_scorecards_fixture_team ON Scorecards(fixtureId, teamId)',
+    'CREATE INDEX IF NOT EXISTS idx_competitions_season_division ON Competitions(seasonStartYear, division)',
+    'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON Users(userName)'
+  ]
+  for (const index of indexes) await execute(db, index)
+}
+
+module.exports = {db, execute, fetchAll, fetchFirst, initPerformanceIndexes}

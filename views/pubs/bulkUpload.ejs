@@ -1,0 +1,4 @@
+<h2>Bulk upload pubs</h2>
+<p>CSV columns: <code>name, location</code></p>
+<%- include('../partials/bulkUploadForm', { action: '/pubs/bulk-upload', imported: imported, errors: errors }) %>
+<p><a href="/pubs">Back to pubs</a></p>

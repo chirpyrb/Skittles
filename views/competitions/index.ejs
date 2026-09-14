@@ -1,13 +1,15 @@
 <h2>Competitions</h2>
 <br>
 
-<% Competitions.forEach(comp => { %>
+<% const seasons = [...new Set(Competitions.map(comp => comp.seasonStartYear).filter(Boolean))]; %>
+<% seasons.forEach(seasonStartYear => { %>
     <div>
-        <span><%= comp.name %></span>
-        <span>Start date: <%= comp.startDate %></span>
-        <span>End date: <%= comp.endDate %></span>
+        <h3><a href="/competitions/<%= seasonStartYear %>"><%= seasonStartYear %>/<%= String(seasonStartYear + 1).slice(-2) %> season</a></h3>
+        <p><%= Competitions.filter(comp => comp.seasonStartYear === seasonStartYear).map(comp => comp.name).join(', ') %></p>
+        <p>Status: <%= Competitions.find(comp => comp.seasonStartYear === seasonStartYear).status %></p>
     </div>
 <% }) %>
 
-<br>
-<a href="/Competitions/new">Add new competition</a>
+<% if (!seasons.length) { %>
+    <p>No seasons are available.</p>
+<% } %>

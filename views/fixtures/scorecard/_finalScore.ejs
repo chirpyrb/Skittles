@@ -13,6 +13,9 @@
                 <th>H7</th>
                 <th>Total</th>
                 <th>Bolters</th>
+                <th>Floppers</th>
+                <th>Squares</th>
+                <th>Chances</th>
             </tr>
         </thead>
         <tbody id="summaryTableBody">
@@ -26,6 +29,9 @@
                     <% } %>
                     <td id="summary-player-total-<%= i %>" style="font-weight: bold; background-color: #f9f9f9;">0</td>
                     <td id="summary-player-bolters-<%= i %>">0</td>
+                    <td id="summary-player-floppers-<%= i %>">0</td>
+                    <td id="summary-player-squares-<%= i %>">0</td>
+                    <td id="summary-player-chances-<%= i %>">0</td>
                 </tr>
             <% } %>
         </tbody>
@@ -37,6 +43,9 @@
                 <% } %>
                 <td id="summary-grand-total" style="background-color: #d4edda; color: #155724; font-size: 1.1em;">0</td>
                 <td id="summary-grand-bolters">0</td>
+                <td id="summary-grand-floppers">0</td>
+                <td id="summary-grand-squares">0</td>
+                <td id="summary-grand-chances">0</td>
             </tr>
         </tfoot>
     </table>

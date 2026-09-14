@@ -39,6 +39,10 @@
 </style>
 
 <h2>Fixtures</h2>
+<p class="muted">BYE entries mark a team's scheduled rest week and do not have a scorecard.</p>
+<% if (user && (user.access === 'dev' || user.access === 'LeagueSecretary')) { %>
+    <a href="/fixtures/bulk-upload" role="button">Upload fixtures from CSV</a>
+<% } %>
 <br>
 
 <div>
@@ -74,36 +78,40 @@
                                         style="margin-top: 20px; border-bottom: 1px solid #ddd; padding-bottom: 5px; color: #444;">
                                         <%= groupedFixtures[key].days[dayKey].displayDate %>
                                     </h4>
-                                    <% groupedFixtures[key].days[dayKey].fixtures.forEach(fixture=> { %>
-                                        <div
-                                            style="margin-bottom: 15px; padding: 10px; background: #f9f9f9; border-radius: 5px; border: 1px solid #eee;">
-                                            <a href="/fixtures/scorecard?gameid=<%=fixture.id%>"
-                                                style="text-decoration: none; color: inherit; display: block;">
+                                    <% groupedFixtures[key].days[dayKey].divisionGroups.forEach(divisionGroup => { %>
+                                        <h5 class="fixture-division-heading"><%= divisionGroup.name %></h5>
+                                        <% divisionGroup.fixtures.forEach(fixture=> { %>
+                                        <div class="fixture-row <%= fixture.status === 'Bye' ? 'bye-fixture' : '' %>" data-fixture-id="<%= fixture.id %>" data-live-score="<%= ['Awaiting teams', 'Live', 'In Progress', 'Provisional'].includes(fixture.status) ? 'true' : 'false' %>">
+                                            <% if (fixture.status === 'Bye') { %>
+                                                <div class="bye-fixture-content">
+                                                    <strong><%= fixture.homeTeam !== 'BYE' ? fixture.homeTeam : fixture.awayTeam %></strong>
+                                                    <span class="bye-label">BYE</span>
+                                                </div>
+                                            <% } else { %>
+                                            <a href="/fixtures/scorecard?gameid=<%=fixture.id%>">
                                                 <span
                                                     style="display: inline-block; width: 40%; text-align: right; font-weight: bold;">
                                                     <%= fixture.homeTeam %>
-                                                        <% if (fixture.status !=null) { %>
-                                                            <span
-                                                                style="margin-left: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;">
-                                                                <%= fixture.homeScore %>
-                                                            </span>
-                                                            <% } %>
+                                                        <span class="fixture-score home-score"
+                                                            style="margin-left: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;">
+                                                            <%= fixture.homeScore != null ? fixture.homeScore : '-' %>
+                                                        </span>
                                                 </span>
                                                 <span
                                                     style="display: inline-block; width: 10%; text-align: center; color: #777;">vs</span>
                                                 <span
                                                     style="display: inline-block; width: 40%; text-align: left; font-weight: bold;">
-                                                    <% if (fixture.status !=null) { %>
-                                                        <span
-                                                            style="margin-right: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;">
-                                                            <%= fixture.awayScore %>
-                                                        </span>
-                                                        <% } %>
+                                                    <span class="fixture-score away-score"
+                                                        style="margin-right: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;">
+                                                        <%= fixture.awayScore != null ? fixture.awayScore : '-' %>
+                                                    </span>
                                                             <%= fixture.awayTeam %>
                                                 </span>
                                             </a>
+                                            <% } %>
                                         </div>
                                         <% }) %>
+                                    <% }) %>
                                             <% }) %>
                 </div>
                 <% }) %>
@@ -114,6 +122,29 @@
 </div>
 
 <script>
+    async function refreshLiveScores() {
+        try {
+            const response = await fetch('/fixtures/live-scores')
+            if (!response.ok) return
+            const scores = await response.json()
+
+            document.querySelectorAll('.fixture-row').forEach(row => {
+                const fixtureScores = scores[row.dataset.fixtureId]
+                if (!fixtureScores) return
+                row.querySelector('.home-score').textContent = fixtureScores.homeScore ?? '-'
+                row.querySelector('.away-score').textContent = fixtureScores.awayScore ?? '-'
+            })
+        } catch (err) {
+            console.error('Unable to refresh live fixture scores:', err)
+        }
+    }
+
+    const liveFixtureRows = document.querySelectorAll('.fixture-row[data-live-score="true"]')
+    if (liveFixtureRows.length > 0) {
+        refreshLiveScores()
+        setInterval(refreshLiveScores, 10000)
+    }
+
     function openTab(evt, tabId) {
         var i, tabcontent, tablinks;
 

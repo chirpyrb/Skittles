@@ -1,0 +1,24 @@
+<div class="page-heading">
+    <h2>Edit alley</h2>
+</div>
+
+<form action="/alleys/edit/<%= alley.id %>" method="post" class="bulk-upload-panel">
+    <label>
+        Alley name
+        <input type="text" name="name" value="<%= alley.name %>" required>
+    </label>
+
+    <label>
+        Pub
+        <select name="pub" required>
+            <% pubListArray.forEach(pub => { %>
+                <option value="<%= pub.id %>" <%= pub.id === alley.pub ? 'selected' : '' %>><%= pub.name %></option>
+            <% }) %>
+        </select>
+    </label>
+
+    <div class="directory-actions">
+        <a href="/alleys" role="button">Cancel</a>
+        <button type="submit">Save alley</button>
+    </div>
+</form>

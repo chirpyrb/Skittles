@@ -1,4 +1,14 @@
-<h2><%=team.teamName%></h2>
+<div class="directory-toolbar">
+    <h2><%= team.teamName %></h2>
+    <% if (user && ['dev', 'LeagueSecretary', 'TeamSecratary', 'TeamSecretary'].includes(user.access)) { %>
+        <div class="directory-actions">
+            <a href="/teams/edit/<%= team.id %>" role="button">Edit team</a>
+            <form action="/teams/delete/<%= team.id %>" method="post" onsubmit="return confirm('Delete this team? Linked players will be kept as unassigned.');">
+                <button type="submit">Delete team</button>
+            </form>
+        </div>
+    <% } %>
+</div>
 <div>
     <span><b>Home alley:</b></span>
     <span><a href="/alleys?alleyName=<%=team.homeAlley%>"><%=team.homeAlley%></a></span>
@@ -18,3 +28,43 @@
     <% }) %>
     <a href="/players/new?teamName=<%=team.teamName%>">Add player</a>
 </div>
+<div>
+    <span><b>Home night:</b></span>
+    <span><%= team.homeNight || '-' %><%= team.homeNight ? ' (Monday = 1)' : '' %></span>
+</div>
+
+<h3><%= seasonStartYear %>/<%= String(seasonStartYear + 1).slice(-2) %> player statistics</h3>
+<% if (playerStats && playerStats.length) { %>
+    <table>
+        <thead>
+            <tr>
+                <th>Player</th>
+                <th>Games played</th>
+                <th>Total pins</th>
+                <th>Score average</th>
+                <th>Bolters</th>
+                <th>Bolter average</th>
+                <th>Floppers</th>
+                <th>Squares</th>
+                <th>Missed chances</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% playerStats.forEach(stats => { %>
+                <tr>
+                    <td><strong><%= stats.firstName %> <%= stats.secondName %></strong><br><span class="muted"><%= stats.alias %></span></td>
+                    <td><%= stats.gamesPlayed %></td>
+                    <td><%= stats.totalPins %></td>
+                    <td><%= stats.scoreAverage %></td>
+                    <td><%= stats.bolters %></td>
+                    <td><%= stats.bolterAverage %></td>
+                    <td><%= stats.floppers %></td>
+                    <td><%= stats.squares %></td>
+                    <td><%= stats.chances %></td>
+                </tr>
+            <% }) %>
+        </tbody>
+    </table>
+<% } else { %>
+    <p class="muted">No submitted scores are available for this season.</p>
+<% } %>

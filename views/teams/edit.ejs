@@ -1,0 +1,42 @@
+<div class="page-heading">
+    <h2>Edit team</h2>
+</div>
+
+<form action="/teams/edit/<%= team.id %>" method="post" class="bulk-upload-panel">
+    <label>
+        Team name
+        <input type="text" name="teamName" value="<%= team.teamName %>" required>
+    </label>
+
+    <label>
+        Home alley
+        <select name="homeAlley" required>
+            <% alleyList.forEach(alley => { %>
+                <option value="<%= alley.id %>" <%= alley.id === team.homeAlley ? 'selected' : '' %>><%= alley.name || alley.AlleyName %></option>
+            <% }) %>
+        </select>
+    </label>
+
+    <label>
+        Division
+        <select name="division" required>
+            <% divList.forEach(div => { %>
+                <option value="<%= div.id %>" <%= div.id === team.division ? 'selected' : '' %>><%= div.name %></option>
+            <% }) %>
+        </select>
+    </label>
+
+    <label>
+        Home night
+        <select name="homeNight" required>
+            <% ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].forEach((day, index) => { %>
+                <option value="<%= index + 1 %>" <%= index + 1 === team.home_night ? 'selected' : '' %>><%= day %></option>
+            <% }) %>
+        </select>
+    </label>
+
+    <div class="directory-actions">
+        <a href="/teams?teamName=<%= encodeURIComponent(team.teamName) %>" role="button">Cancel</a>
+        <button type="submit">Save team</button>
+    </div>
+</form>

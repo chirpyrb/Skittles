@@ -1,32 +1,38 @@
 <header class="main-header">
-    <h1><a href="/">Weymouth &amp; Portland Skittles League</a></h1>
-    <div>
-        <% if (locals.user) { %>
-            <span><a href="/users/profile">Profile</a></span>
-            <span><a href="/users/logout">Logout</a></span>
-            <% } else { %>
-                <span><a href="/users/login/">Login</a></span>
-                <span><a href="/users/register">Register</a></span>
-                <% } %>
+    <div class="header-inner">
+        <a class="brand" href="/" aria-label="Weymouth and Portland Skittles League home">
+            <span class="brand-mark">W</span>
+            <span class="brand-copy">
+                <strong>Weymouth &amp; Portland</strong>
+                <small>Skittles League</small>
+            </span>
+        </a>
 
-    </div>
-    <div>
-        <nav class="nav main-nav">
-            <ul>
-                <li>Home</li>
-                <li><a href="/pubs">Pubs</a></li>
-                <li><a href="/teams">Teams</a></li>
-                <li><a href="/players">Players</a></li>
-                <li><a href="/alleys">Alleys</a></li>
-                <li>League </li>
-                <li><a href="/divisions">Divisions</a></li>
-                <li><a href="/fixtures">Fixtures</a></li>
-                <li><a href="/competitions">Competitions</a></li>
-                <li>Rules</li>
-                <li>Contact</li>
-                <li>Links</li>
-            </ul>
+        <nav class="main-nav" aria-label="Main navigation">
+            <div class="nav-group">
+                <span class="nav-label">Community</span>
+                <a href="/pubs">Pubs</a>
+                <a href="/teams">Teams</a>
+                <a href="/players">Players</a>
+                <a href="/alleys">Alleys</a>
+            </div>
+            <div class="nav-group">
+                <span class="nav-label">League</span>
+                <a href="/divisions">Divisions</a>
+                <a href="/fixtures">Fixtures</a>
+                <a href="/competitions">Competitions</a>
+            </div>
         </nav>
+
+        <div class="account-links">
+            <% if (locals.user) { %>
+                <a href="/users/profile">Profile</a>
+                <a class="account-action" href="/users/logout">Log out</a>
+            <% } else { %>
+                <a href="/users/login/">Log in</a>
+                <a class="account-action" href="/users/register">Register</a>
+            <% } %>
+        </div>
     </div>
 
 </header>

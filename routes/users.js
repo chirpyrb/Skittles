@@ -75,7 +75,7 @@ router.get('/profile', async (req, res) => {
 
     // Get list of all players to show in dropdown
     const SQ3 = require('../models/sql')
-    const allPlayers = await SQ3.fetchAll(SQ3.db, 'SELECT P.id, P.firstName, P.secondName, P.alias, T.teamName FROM Players P LEFT JOIN Teams T ON P.team = T.id')
+    const allPlayers = await SQ3.fetchAll(SQ3.db, 'SELECT P.id, P.firstName, P.secondName, P.alias, T.teamName FROM Players P LEFT JOIN Teams T ON P.team = T.id WHERE P.approved = 1')
 
     // Get linked player details
     const linkedPlayer = await auth.getPlayerForUser(req.session.user.userName)
@@ -95,6 +95,9 @@ router.post('/link', async (req, res) => {
 
     const playerId = req.body.playerId
     if (playerId) {
+        const SQ3 = require('../models/sql')
+        const approvedPlayer = await SQ3.fetchFirst(SQ3.db, 'SELECT id FROM Players WHERE id = ? AND approved = 1', [playerId])
+        if (!approvedPlayer) return res.status(400).send('That player is not approved yet.')
         await auth.linkPlayerToUser(req.session.user.userName, playerId)
         req.session.user.playerId = playerId;
         const linkedPlayer = await auth.getPlayerForUser(req.session.user.userName)
