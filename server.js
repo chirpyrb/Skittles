@@ -69,35 +69,23 @@ app.use('/fixtures', fixtureRouter)
 app.use('/users', require('./routes/users'))
 
 async function initDatabase() {
-    const modelInitializers = [
-        ['divisions', require('./models/division').initTable],
-        ['pubs', require('./models/pub').initTable],
-        ['alleys', require('./models/alley').initTable],
-        ['teams', require('./models/team').initTable],
-        ['players', require('./models/player').initTable],
-        ['users', require('./models/user').initUserDatabase],
-        ['fixtures', require('./models/fixture').initTable],
-        ['scorecards', require('./models/scorecard').initTable],
-        ['competitions', require('./models/competition').initTable]
-    ]
+    // Create all persistent tables in one schema batch.
+    await SQ3.initSchema()
 
-    for (const [name, initialize] of modelInitializers) {
-        try {
-            await initialize()
-        } catch (error) {
-            throw new Error(`Unable to initialize ${name}: ${error.message}`)
-        }
-    }
+    // Add indexes after all referenced tables have been created.
     await SQ3.initPerformanceIndexes()
 }
 
+// Start the HTTPS server only after database initialization succeeds.
 initDatabase()
     .then(() => {
+        // Bind the application to the configured HTTPS port.
         https.createServer(secOpts, app).listen(process.env.PORT, () => {
             console.log(`HTTPS Server running on https://localhost:${process.env.PORT}`)
         })
     })
     .catch(error => {
+        // Prevent the server from running against an incomplete database.
         console.error('Database initialization failed:', error)
         process.exitCode = 1
     })

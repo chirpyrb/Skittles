@@ -1,29 +1,10 @@
 const SQ3 = require('../models/sql')
 
+// Keep the legacy initializer available; the central schema creates this table.
 async function initTable() {
-    await SQ3.execute(SQ3.db,
-        `CREATE TABLE IF NOT EXISTS Scorecards (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            fixtureId INTEGER,
-            teamId INTEGER,
-            userId INTEGER,
-            playerIndex INTEGER,
-            playerId INTEGER,
-            handNumber INTEGER,
-            score INTEGER,
-            bolters INTEGER,
-            isFlopper INTEGER DEFAULT 0,
-            isSquare INTEGER DEFAULT 0,
-            isChance INTEGER DEFAULT 0,
-            FOREIGN KEY (fixtureId) REFERENCES Fixtures(id),
-            FOREIGN KEY (teamId) REFERENCES Teams(id)
-        )`
-    )
-    try { await SQ3.execute(SQ3.db, 'ALTER TABLE Scorecards ADD COLUMN isFlopper INTEGER DEFAULT 0') } catch (error) {}
-    try { await SQ3.execute(SQ3.db, 'ALTER TABLE Scorecards ADD COLUMN isSquare INTEGER DEFAULT 0') } catch (error) {}
-    try { await SQ3.execute(SQ3.db, 'ALTER TABLE Scorecards ADD COLUMN isChance INTEGER DEFAULT 0') } catch (error) {}
 }
 
+// Validate, replace, and save the final scores for one fixture and team.
 async function saveFinalScores(fixtureId, teamId, userId, playerScores) {
     await initTable()
     const playerIds = playerScores.map(entry => entry.playerId).filter(Boolean)
@@ -49,6 +30,7 @@ async function saveFinalScores(fixtureId, teamId, userId, playerScores) {
     }
 }
 
+// Return all saved scorecard rows for a fixture.
 async function getScorecardsForFixture(fixtureId) {
     await initTable()
     return await SQ3.fetchAll(SQ3.db, `SELECT * FROM Scorecards WHERE fixtureId = ?`, [fixtureId])

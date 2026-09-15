@@ -1,24 +1,10 @@
 const SQ3 = require('../models/sql')
 
+// Keep the legacy initializer available without creating league data.
 async function initTable() {
-    await SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS Competitions \
-        (id INTEGER PRIMARY KEY, \
-        name TEXT NOT NULL, \
-        startDate TEXT NOT NULL, \
-        endDate TEXT NOT NULL, \
-        status TEXT DEFAULT "Active", \
-        seasonStartYear INTEGER, \
-        division INTEGER);')
-    try { await SQ3.execute(SQ3.db, 'ALTER TABLE Competitions ADD COLUMN status TEXT DEFAULT "Active"'); } catch(e) {}
-    try { await SQ3.execute(SQ3.db, 'ALTER TABLE Competitions ADD COLUMN seasonStartYear INTEGER'); } catch(e) {}
-    try { await SQ3.execute(SQ3.db, 'ALTER TABLE Competitions ADD COLUMN division INTEGER'); } catch(e) {}
-    await SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS TeamSeasonDivisions (teamId INTEGER NOT NULL, seasonStartYear INTEGER NOT NULL, division INTEGER NOT NULL, PRIMARY KEY (teamId, seasonStartYear), FOREIGN KEY (teamId) REFERENCES Teams(id))')
-
-    await ensureSeason(2025, 'Completed')
-    await ensureCurrentSeason()
-    await migrateExistingFixtures()
 }
 
+// Build the display name and July-to-June date range for a season year.
 function getSeasonDates(startYear) {
     const sYear = parseInt(startYear);
     return {
@@ -28,18 +14,22 @@ function getSeasonDates(startYear) {
     };
 }
 
+// Return competitions with their division names ordered from newest to oldest.
 async function getAllCompetitions() {
     return await SQ3.fetchAll(SQ3.db, 'SELECT Competitions.*, Divisions.name AS divisionName FROM Competitions LEFT JOIN Divisions ON Divisions.id = Competitions.division ORDER BY seasonStartYear DESC, division ASC, id DESC')
 }
 
+// Return the latest active season and its overall date range.
 async function getCurrentSeason() {
     return await SQ3.fetchFirst(SQ3.db, 'SELECT seasonStartYear, MIN(startDate) AS startDate, MAX(endDate) AS endDate FROM Competitions WHERE status = "Active" GROUP BY seasonStartYear ORDER BY seasonStartYear DESC')
 }
 
+// Insert one competition record with its dates and lifecycle status.
 async function createCompetition(seasonName, seasonStartDate, seasonEndDate, status = 'Active') {
     return await SQ3.execute(SQ3.db, 'INSERT INTO Competitions(name,startDate,endDate,status) VALUES (?,?,?,?)', [seasonName, seasonStartDate, seasonEndDate, status])
 }
 
+// Archive the previous season, apply movement, and create a requested active season.
 async function createSeasonForYear(startYear) {
     const dates = getSeasonDates(startYear);
     const previousSeason = await getCurrentSeason()
@@ -54,6 +44,7 @@ async function createSeasonForYear(startYear) {
     return await getCurrentSeason();
 }
 
+// Ensure the database has an active season matching the current July-to-June year.
 async function ensureCurrentSeason() {
     const today = new Date()
     const currentStartYear = today.getMonth() >= 6 ? today.getFullYear() : today.getFullYear() - 1
@@ -73,6 +64,7 @@ async function ensureCurrentSeason() {
     return await getCurrentSeason()
 }
 
+// Snapshot each team's division before a season is archived.
 async function archiveSeason(seasonStartYear) {
     await SQ3.execute(SQ3.db, `
         INSERT OR IGNORE INTO TeamSeasonDivisions(teamId, seasonStartYear, division)
@@ -88,6 +80,7 @@ async function archiveSeason(seasonStartYear) {
         )`, [seasonStartYear, seasonStartYear, seasonStartYear])
 }
 
+// Ensure all three division competitions exist for a season and set their status.
 async function ensureSeason(startYear, status = 'Active') {
     const dates = getSeasonDates(startYear)
     for (let division = 1; division <= 3; division++) {
@@ -102,12 +95,14 @@ async function ensureSeason(startYear, status = 'Active') {
     }
 }
 
+// Find the competition belonging to one division in one season.
 async function getCompetitionForDivision(seasonStartYear, divisionId) {
     return await SQ3.fetchFirst(SQ3.db,
         'SELECT * FROM Competitions WHERE seasonStartYear = ? AND division = ?',
         [seasonStartYear, divisionId])
 }
 
+// Assign legacy fixtures to the matching season and division competition.
 async function migrateExistingFixtures() {
     const fixtureTable = await SQ3.fetchFirst(SQ3.db, 'SELECT name FROM sqlite_master WHERE type = "table" AND name = "Fixtures"')
     const teamTable = await SQ3.fetchFirst(SQ3.db, 'SELECT name FROM sqlite_master WHERE type = "table" AND name = "Teams"')
@@ -129,6 +124,7 @@ async function migrateExistingFixtures() {
     }
 }
 
+// Parse supported stored date formats into a UTC Date or return null when invalid.
 function parseStoredDate(value) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(`${value}T00:00:00Z`)
     const match = String(value).match(/^(\d{2})-([A-Za-z]{3})-(\d{2})$/)
@@ -139,6 +135,7 @@ function parseStoredDate(value) {
     return new Date(Date.UTC(2000 + Number(match[3]), month, Number(match[1])))
 }
 
+// Mark a season complete and trigger promotion/relegation once all divisions finish.
 async function completeSeason(seasonId) {
     const season = await SQ3.fetchFirst(SQ3.db, 'SELECT id, seasonStartYear, status FROM Competitions WHERE id = ?', [seasonId])
     if (!season) return

@@ -1,6 +1,7 @@
 const SQ3 = require('./sql')
 const multer = require('multer')
 
+// Keep uploads in memory, limit their size, and accept only CSV files.
 const csvUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 2 * 1024 * 1024 },
@@ -10,6 +11,7 @@ const csvUpload = multer({
     }
 })
 
+// Allow only signed-in developer or league-secretary users to upload data.
 function requireBulkUploadAccess(req, res, next) {
     if (!req.session.user) {
         req.session.returnTo = req.originalUrl
@@ -21,6 +23,7 @@ function requireBulkUploadAccess(req, res, next) {
     next()
 }
 
+// Parse one CSV line while respecting quoted commas and escaped quotes.
 function parseCSVLine(line) {
     const columns = []
     let value = ''
@@ -48,14 +51,17 @@ function parseCSVLine(line) {
     return columns
 }
 
+// Convert CSV text into non-empty arrays of parsed columns.
 function csvRows(content) {
     return content.replace(/^\uFEFF/, '').split(/\r?\n/).filter(line => line.trim()).map(parseCSVLine)
 }
 
+// Detect whether the first CSV row is the expected header row.
 function isHeader(columns, firstColumn) {
     return columns[0].toLowerCase() === firstColumn.toLowerCase()
 }
 
+// Validate, de-duplicate, and transactionally insert records using a model-specific config.
 async function importRows(content, config) {
     const rows = csvRows(content)
     const errors = []
@@ -107,6 +113,7 @@ async function importRows(content, config) {
     return { imported: records.length, errors: [] }
 }
 
+// Import pubs from CSV text after resolving duplicate names.
 async function importPubs(content) {
     return importRows(content, {
         header: 'name',
@@ -124,6 +131,7 @@ async function importPubs(content) {
     })
 }
 
+// Import players after resolving each player's team.
 async function importPlayers(content) {
     return importRows(content, {
         header: 'firstName',
@@ -140,6 +148,7 @@ async function importPlayers(content) {
     })
 }
 
+// Import alleys after resolving each alley's pub by name or ID.
 async function importAlleys(content) {
     return importRows(content, {
         header: 'name',
@@ -160,6 +169,7 @@ async function importAlleys(content) {
     })
 }
 
+// Import teams after resolving alleys, divisions, and home-night values.
 async function importTeams(content) {
     return importRows(content, {
         header: 'teamName',

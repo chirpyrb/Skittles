@@ -1,31 +1,31 @@
 const SQ3 = require('../models/sql')
 
+// Keep the legacy initializer available without creating league data.
 async function initTable() {
-    await SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS Divisions (id INTEGER PRIMARY KEY, name TEXT NOT NULL)')
-    // Ensure Divisions 1, 2, 3 exist
-    const divs = await SQ3.fetchAll(SQ3.db, 'SELECT * FROM Divisions');
-    if (!divs || divs.length === 0) {
-        await SQ3.execute(SQ3.db, 'INSERT INTO Divisions(id, name) VALUES (1, "Division 1"), (2, "Division 2"), (3, "Division 3")');
-    }
 }
 
+// Return all divisions in numeric order.
 async function getAllDivisions() {
     await initTable()
     return await SQ3.fetchAll(SQ3.db, 'SELECT * FROM Divisions ORDER BY id ASC')
 }
 
+// Find a division by name without being sensitive to case or surrounding spaces.
 async function getDivisionByName(name) {
     return await SQ3.fetchFirst(SQ3.db, 'SELECT id, name FROM Divisions WHERE lower(trim(name)) = lower(trim(?))', [name])
 }
 
+// Insert a new named division.
 async function createDivision(divName) {
     return await SQ3.execute(SQ3.db, 'INSERT INTO Divisions(name) VALUES (?)', [divName])
 }
 
+// Return all teams currently assigned to a division.
 async function getAllTeamsFromDivision(divisionId) {
     return await SQ3.fetchAll(SQ3.db, 'SELECT * FROM Teams WHERE division = ?', [divisionId])
 }
 
+// Calculate played, result, pin, point, and rank totals for a division.
 async function calculateStandings(seasonId, divisionId) {
     await initTable()
     const teams = await SQ3.fetchAll(SQ3.db, `
@@ -116,6 +116,7 @@ async function calculateStandings(seasonId, divisionId) {
     return standings
 }
 
+// Move the bottom and top teams between the three divisions using standings.
 async function executePromotionAndRelegation(seasonId) {
     const standingsDiv1 = await calculateStandings(seasonId, 1);
     const standingsDiv2 = await calculateStandings(seasonId, 2);

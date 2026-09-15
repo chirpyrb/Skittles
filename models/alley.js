@@ -1,12 +1,10 @@
 const SQ3 = require('../models/sql')
 
+// Keep the legacy initializer available; the central schema creates this table.
 async function initTable() {
-    await SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS Alleys \
-        (id INTEGER PRIMARY KEY, \
-        name TEXT NOT NULL, pub INTEGER, \
-        FOREIGN KEY(pub) REFERENCES pub(id))')
 }
 
+// Return alleys, optionally filtered by alley name and including pub details.
 async function getAlleys(alleySearchName) {
     let SQL = ""
     let params = {}
@@ -21,16 +19,19 @@ async function getAlleys(alleySearchName) {
     return await SQ3.fetchAll(SQ3.db, SQL, params)
 }
 
+// Insert a new alley and associate it with a pub.
 async function createAlley(newAlleyName, pubID) {
     return await SQ3.execute(SQ3.db, 'INSERT INTO Alleys(name,pub) VALUES(?,?)', [newAlleyName, pubID])
 }
 
+// Return one alley together with its pub name.
 async function getAlleyById(alleyId) {
     return await SQ3.fetchFirst(SQ3.db,
         'SELECT Alleys.id, Alleys.name, Alleys.pub, Pubs.name AS pubName FROM Alleys LEFT JOIN Pubs ON Pubs.id = Alleys.pub WHERE Alleys.id = ?',
         [alleyId])
 }
 
+// Update an alley's name and linked pub.
 async function updateAlley(alleyId, name, pubId) {
     return await SQ3.execute(SQ3.db, 'UPDATE Alleys SET name = ?, pub = ? WHERE id = ?', [name, pubId, alleyId])
 }

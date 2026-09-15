@@ -1,24 +1,10 @@
 const SQ3 = require('../models/sql')
 
+// Keep the legacy initializer available; the central schema creates fixture tables.
 async function initTable() {
-    // Create the table, if we havent already.
-    await SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS Fixtures \
-        (id INTEGER PRIMARY KEY, \
-        homeTeam INTEGER, \
-        awayTeam INTEGER, \
-        competition INTEGER, \
-        matchDate TEXT NOT NULL, \
-        status TEXT, \
-        homeScore INTEGER, \
-        awayScore INTEGER, \
-        FOREIGN KEY (homeTeam) REFERENCES Teams(id), \
-        FOREIGN KEY (awayTeam) REFERENCES Teams(id), \
-        FOREIGN KEY (competition) REFERENCES competitions(id))')
-    try { await SQ3.execute(SQ3.db, 'ALTER TABLE Fixtures ADD COLUMN homeScore INTEGER'); } catch(e) {}
-    try { await SQ3.execute(SQ3.db, 'ALTER TABLE Fixtures ADD COLUMN awayScore INTEGER'); } catch(e) {}
-    await SQ3.execute(SQ3.db, 'CREATE TABLE IF NOT EXISTS FixtureApprovals (fixtureId INTEGER NOT NULL, teamId INTEGER NOT NULL, userId INTEGER NOT NULL, approvedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (fixtureId, teamId), FOREIGN KEY (fixtureId) REFERENCES Fixtures(id), FOREIGN KEY (teamId) REFERENCES Teams(id), FOREIGN KEY (userId) REFERENCES Users(id))')
 }
 
+// Return every fixture with team, competition, division, date, and live-score details.
 async function getAllFixtures() {
     // Returns a list of all fixtures.
     let fixtureList = await SQ3.fetchAll(SQ3.db,
@@ -60,6 +46,7 @@ async function getAllFixtures() {
     return fixtureList
 }
 
+// Return fixtures involving a specific team.
 async function getAllFixturesByTeamID(teamID) {
     // Returns a list of all fixtures for a given team ID.
     const fixtureList = await SQ3.fetchAll(SQ3.db,
@@ -90,12 +77,14 @@ async function getAllFixturesByTeamID(teamID) {
     return fixtureList
 }
 
+// Sort fixtures chronologically by their calculated match date.
 function sortFixturesByDate(fixtureList) {
     // Sorts a list of fixtures by date.
     fixtureList.sort((a, b) => a.matchDate - b.matchDate)
     return fixtureList
 }
 
+// Convert stored dates into Date objects and apply each team's match-day offset.
 function formatFixtureDate(fixtureList) {
     // Formats the date of a fixture.
     for (let f of fixtureList) {
@@ -105,6 +94,7 @@ function formatFixtureDate(fixtureList) {
     return fixtureList
 }
 
+// Group fixtures by month and day for calendar-style display.
 function groupFixturesByMonth(fixtureList) {
 
     // Groups a list of fixtures by month.
@@ -146,6 +136,7 @@ function groupFixturesByMonth(fixtureList) {
 
     Object.values(groupedFixtures).forEach(month => {
         Object.values(month.days).forEach(day => {
+            // Sort each day's fixtures by division and then home team.
             day.fixtures.sort((first, second) => {
                 const divisionCompare = (first.divisionName || 'Unassigned').localeCompare(second.divisionName || 'Unassigned', undefined, { numeric: true })
                 if (divisionCompare !== 0) return divisionCompare
@@ -168,12 +159,14 @@ function groupFixturesByMonth(fixtureList) {
     return groupedFixtures
 }
 
+// Return the current status of one fixture.
 async function getFixtureStatus(id) {
     // Returns the status of a given fixture.
     const gameStatus = await SQ3.fetchFirst(SQ3.db, 'SELECT Status FROM Fixtures WHERE id = ?', id)
     return gameStatus.Status
 }
 
+// Return the teams, captains, date, status, and scores for one fixture.
 async function getFixtureInfo(id) {
     // Returns the fixture summary for a given fixture.
     const fixtureInfo = await SQ3.fetchFirst(SQ3.db, "\
@@ -197,6 +190,7 @@ async function getFixtureInfo(id) {
 
 }
 
+// Create per-user temporary game tables and mark the fixture as awaiting teams.
 async function beginGame(gameid, userid) {
     // A user wants to begin a game.
 
@@ -236,10 +230,12 @@ async function beginGame(gameid, userid) {
     }
 }
 
+// Insert a fixture connecting two teams to a competition.
 async function createFixture(homeTeam, awayTeam, matchDate, comp, status = null) {
     return await SQ3.execute(SQ3.db, 'INSERT INTO Fixtures(homeTeam,awayTeam,matchDate,competition,status) VALUES (?,?,?,?,?);', [homeTeam, awayTeam, matchDate, comp, status])
 }
 
+// Parse one fixture CSV line while respecting quoted values.
 function parseCSVLine(line) {
     const columns = []
     let value = ''
@@ -267,6 +263,7 @@ function parseCSVLine(line) {
     return columns
 }
 
+// Validate that a date is a real Monday in YYYY-MM-DD format.
 function parseMondayDate(value) {
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
     if (!match) return null
@@ -282,6 +279,7 @@ function parseMondayDate(value) {
     return value
 }
 
+// Validate fixture CSV content, resolve references, and insert valid fixtures.
 async function importFixturesFromCSVContent(csvContent, competitionIds, divisionModel, teamModel) {
     const rows = csvContent.replace(/^\uFEFF/, '').split(/\r?\n/).filter(line => line.trim())
     const errors = []
@@ -386,6 +384,7 @@ async function importFixturesFromCSVContent(csvContent, competitionIds, division
 
     return { imported: fixtures.length, errors: [] }
 }
+// Create or update one temporary score entry for an in-progress game.
 async function saveTempScore(gameid, userid, hand, teamid, playerid, position, score, bolters, isFlopper = 0, isSquare = 0, isChance = 0) {
     const tableName = `temptable_scores${gameid}_user${userid}`;
 
@@ -412,6 +411,7 @@ async function saveTempScore(gameid, userid, hand, teamid, playerid, position, s
     }
 }
 
+// Collect and de-duplicate temporary scores from every user table for a fixture.
 async function getAllScoresForFixture(gameid) {
     // Finds all temp score tables for a given game ID and aggregates the scores.
     const tables = await SQ3.fetchAll(SQ3.db, `SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'temptable\\_scores${gameid}\\_user%' ESCAPE '\\'`);
@@ -438,6 +438,7 @@ async function getAllScoresForFixture(gameid) {
     });
 }
 
+// Return the temporary score entries for one user and game.
 async function getTempScoresForUser(gameid, userid) {
     const tableName = `temptable_scores${parseInt(gameid)}_user${parseInt(userid)}`;
     const table = await SQ3.fetchFirst(SQ3.db,
@@ -450,6 +451,7 @@ async function getTempScoresForUser(gameid, userid) {
         `SELECT Hand, Team, Player, Position, Score, Bolters, isFlopper, isSquare, isChance FROM ${tableName} ORDER BY Hand ASC, Position ASC`)
 }
 
+// Import fixtures from a legacy CSV file and adjust dates for home-team nights.
 async function importFixturesFromCSV(csvFilePath, compID = 1) {
     const fs = require('fs');
     const teamModel = require('./team');
@@ -513,6 +515,7 @@ async function importFixturesFromCSV(csvFilePath, compID = 1) {
     return count;
 }
 
+// Update a fixture's status and any supplied home or away score.
 async function updateFixtureScore(gameid, homeScore, awayScore, status = 'Completed') {
     let sql = 'UPDATE Fixtures SET status = ?';
     const params = [status];
@@ -529,6 +532,7 @@ async function updateFixtureScore(gameid, homeScore, awayScore, status = 'Comple
     return await SQ3.execute(SQ3.db, sql, params);
 }
 
+// Return fixture status and approval details for both participating teams.
 async function getFixtureApprovalStatus(fixtureId) {
     await initTable()
     return await SQ3.fetchFirst(SQ3.db, `
@@ -547,6 +551,7 @@ async function getFixtureApprovalStatus(fixtureId) {
         WHERE f.id = ?`, [fixtureId])
 }
 
+// Record a team's approval after verifying it belongs to the fixture.
 async function approveFixture(fixtureId, teamId, userId) {
     const fixtureInfo = await getFixtureInfo(fixtureId)
     if (!fixtureInfo || (fixtureInfo.homeTeamID !== teamId && fixtureInfo.awayTeamID !== teamId)) {
@@ -558,6 +563,7 @@ async function approveFixture(fixtureId, teamId, userId) {
         [fixtureId, teamId, userId])
 }
 
+// Confirm provisional scores after both teams have approved them.
 async function confirmFixture(fixtureId) {
     const approval = await getFixtureApprovalStatus(fixtureId)
     if (!approval || approval.status !== 'Provisional' || !approval.homeApprovedBy || !approval.awayApprovedBy) {
@@ -566,6 +572,7 @@ async function confirmFixture(fixtureId) {
     await SQ3.execute(SQ3.db, 'UPDATE Fixtures SET status = "Confirmed" WHERE id = ?', [fixtureId])
 }
 
+// Generate home-and-away fixtures for every division team pair.
 async function generateSeasonFixtures(seasonId, seasonStartDateStr = '2026-09-07') {
     const divisions = [1, 2, 3];
     let createdCount = 0;
@@ -622,6 +629,7 @@ module.exports = {
     generateSeasonFixtures
 }
 
+// Sum all currently saved temporary scores by fixture and team.
 async function getLiveScoreTotals() {
     const tables = await SQ3.fetchAll(SQ3.db, `
         SELECT name FROM sqlite_master
