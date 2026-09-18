@@ -49,6 +49,15 @@ const initSchema = async () => {
     -- Lookup values used by teams and competitions.
     CREATE TABLE IF NOT EXISTS Divisions (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS Days (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+    -- Home-night values are fixed lookup data: Monday is 1 through Sunday is 7.
+    INSERT INTO Days (id, name)
+    SELECT 1, 'Monday' WHERE NOT EXISTS (SELECT 1 FROM Days WHERE id = 1)
+    UNION ALL SELECT 2, 'Tuesday' WHERE NOT EXISTS (SELECT 1 FROM Days WHERE id = 2)
+    UNION ALL SELECT 3, 'Wednesday' WHERE NOT EXISTS (SELECT 1 FROM Days WHERE id = 3)
+    UNION ALL SELECT 4, 'Thursday' WHERE NOT EXISTS (SELECT 1 FROM Days WHERE id = 4)
+    UNION ALL SELECT 5, 'Friday' WHERE NOT EXISTS (SELECT 1 FROM Days WHERE id = 5)
+    UNION ALL SELECT 6, 'Saturday' WHERE NOT EXISTS (SELECT 1 FROM Days WHERE id = 6)
+    UNION ALL SELECT 7, 'Sunday' WHERE NOT EXISTS (SELECT 1 FROM Days WHERE id = 7);
 
     -- Locations are separated into pubs and their individual alleys.
     CREATE TABLE IF NOT EXISTS Pubs (id INTEGER PRIMARY KEY, name TEXT NOT NULL, location TEXT);
