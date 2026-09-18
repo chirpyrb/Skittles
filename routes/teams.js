@@ -7,6 +7,7 @@ const alley = require('../models/alley')
 const division = require('../models/division')
 const bulkImport = require('../models/bulkImport')
 const competition = require('../models/competition')
+const league = require('../models/league')
 
 function requireRegisteredUser(req, res, next) {
     if (!req.session.user) {
@@ -65,9 +66,10 @@ router.get('/', async (req, res) => {
 
 // New teams
 router.get('/new', async (req, res) => {
-    const divList = await division.getAllDivisions()
     const alleyList = await alley.getAlleys(null)
-    res.render('teams/new', { divList: divList, alleyList: alleyList })
+    const leagues = await league.getAllLeagues()
+    const selectedLeagueId = req.query.leagueId ? Number(req.query.leagueId) : null
+    res.render('teams/new', { alleyList, leagues, selectedLeagueId })
 })
 
 router.get('/edit/:id', requireTeamManagementAccess, async (req, res) => {
@@ -76,21 +78,23 @@ router.get('/edit/:id', requireTeamManagementAccess, async (req, res) => {
 
     const divList = await division.getAllDivisions()
     const alleyList = await alley.getAlleys(null)
-    res.render('teams/edit', { team: teamInfo, divList: divList, alleyList: alleyList })
+    const leagues = await league.getAllLeagues()
+    res.render('teams/edit', { team: teamInfo, divList: divList, alleyList: alleyList, leagues: leagues })
 })
 
 router.post('/edit/:id', requireTeamManagementAccess, async (req, res) => {
     const teamName = String(req.body.teamName || '').trim()
     const homeAlley = Number(req.body.homeAlley)
-    const divisionId = Number(req.body.division)
+    const divisionId = req.body.division ? Number(req.body.division) : null
+    const leagueId = req.body.leagueId ? Number(req.body.leagueId) : null
     const homeNight = Number(req.body.homeNight)
 
-    if (!teamName || !Number.isInteger(homeAlley) || !Number.isInteger(divisionId) || !Number.isInteger(homeNight) || homeNight < 1 || homeNight > 7) {
-        return res.status(400).send('Team name, alley, division, and a home night from 1 to 7 are required.')
+    if (!teamName || !Number.isInteger(homeAlley) || !Number.isInteger(homeNight) || homeNight < 1 || homeNight > 7) {
+        return res.status(400).send('Team name, alley, and a home night from 1 to 7 are required.')
     }
 
     try {
-        await team.updateTeam(req.params.id, teamName, homeAlley, divisionId, homeNight)
+        await team.updateTeam(req.params.id, teamName, homeAlley, divisionId, homeNight, leagueId)
         res.redirect(`/teams?teamName=${encodeURIComponent(teamName)}`)
     } catch (error) {
         console.error(error)
@@ -134,15 +138,20 @@ router.post('/bulk-upload', bulkImport.requireBulkUploadAccess, (req, res, next)
 
 // Create team.
 router.post('/', async (req, res) => {
-    const newTeamName = req.body.newTeamName
-    const newTeamAlley = req.body.newTeamAlley
-    const newTeamDiv = req.body.newTeamDiv
-    console.log(newTeamName)
+    const newTeamName = String(req.body.newTeamName || '').trim()
+    const newTeamAlley = req.body.newTeamAlley ? Number(req.body.newTeamAlley) : null
+    const leagueId = req.body.leagueId ? Number(req.body.leagueId) : null
+
+    if (!newTeamName || !leagueId) {
+        return res.status(400).send('Team name and league are required.')
+    }
+
     try {
-        await team.createTeam(newTeamName, newTeamAlley, newTeamDiv)
+        await team.createTeam(newTeamName, newTeamAlley, leagueId)
         res.redirect('/teams')
     } catch (err) {
-
+        console.error(err)
+        res.status(400).send(err.message || 'Unable to create team.')
     }
 })
 

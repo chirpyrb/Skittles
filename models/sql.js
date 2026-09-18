@@ -43,11 +43,40 @@ const fetchFirst = async (db, sql, params = []) => {
   });
 };
 
-// Create the complete persistent schema in one SQLite call.
+// Create the complete persistent schema and migrate older league data.
 const initSchema = async () => {
+  // Use a fresh database state for this refactor; no legacy conversion remains.
   await execute(db, `
-    -- Lookup values used by teams and competitions.
-    CREATE TABLE IF NOT EXISTS Divisions (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS Leagues (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      status TEXT DEFAULT 'Active'
+    );
+
+    CREATE TABLE IF NOT EXISTS Competitions (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      startDate TEXT,
+      endDate TEXT,
+      status TEXT DEFAULT 'Active',
+      seasonStartYear INTEGER,
+      division INTEGER,
+      competitionId INTEGER,
+      leagueId INTEGER,
+      FOREIGN KEY (competitionId) REFERENCES Competitions(id)
+    );
+    CREATE TABLE IF NOT EXISTS Seasons (
+      id INTEGER PRIMARY KEY,
+      competitionId INTEGER NOT NULL,
+      leagueId INTEGER,
+      name TEXT NOT NULL,
+      startDate TEXT NOT NULL,
+      endDate TEXT NOT NULL,
+      status TEXT DEFAULT 'Active',
+      seasonStartYear INTEGER,
+      FOREIGN KEY (competitionId) REFERENCES Competitions(id)
+    );
+    CREATE TABLE IF NOT EXISTS Divisions (id INTEGER PRIMARY KEY, name TEXT NOT NULL, seasonId INTEGER, competitionId INTEGER, FOREIGN KEY (seasonId) REFERENCES Seasons(id), FOREIGN KEY (competitionId) REFERENCES Competitions(id));
     CREATE TABLE IF NOT EXISTS Days (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
     -- Home-night values are fixed lookup data: Monday is 1 through Sunday is 7.
     INSERT INTO Days (id, name)
@@ -66,7 +95,7 @@ const initSchema = async () => {
     -- Teams can refer to lookup tables and to a user who captains the team.
     CREATE TABLE IF NOT EXISTS Teams (
       id INTEGER PRIMARY KEY, teamName TEXT NOT NULL, homeAlley INTEGER,
-      division INTEGER, home_night INTEGER, captainId INTEGER REFERENCES Users(id),
+      division INTEGER, leagueId INTEGER, home_night INTEGER, captainId INTEGER REFERENCES Users(id),
       FOREIGN KEY (homeAlley) REFERENCES Alleys(id), FOREIGN KEY (division) REFERENCES Divisions(id),
       FOREIGN KEY (home_night) REFERENCES Days(id)
     );
@@ -84,20 +113,27 @@ const initSchema = async () => {
       access TEXT NOT NULL, playerId INTEGER REFERENCES Players(id)
     );
 
-    -- Competitions represent seasons or divisions within a season.
-    CREATE TABLE IF NOT EXISTS Competitions (
-      id INTEGER PRIMARY KEY, name TEXT NOT NULL, startDate TEXT NOT NULL,
-      endDate TEXT NOT NULL, status TEXT DEFAULT 'Active',
-      seasonStartYear INTEGER, division INTEGER
-    );
-
     -- Fixtures connect teams to a competition and store the final scores.
     CREATE TABLE IF NOT EXISTS Fixtures (
-      id INTEGER PRIMARY KEY, homeTeam INTEGER, awayTeam INTEGER, competition INTEGER,
+      id INTEGER PRIMARY KEY, homeTeam INTEGER, awayTeam INTEGER,
+      leagueId INTEGER, competition INTEGER, seasonId INTEGER, divisionId INTEGER,
       matchDate TEXT NOT NULL, status TEXT, homeScore INTEGER, awayScore INTEGER,
       FOREIGN KEY (homeTeam) REFERENCES Teams(id), FOREIGN KEY (awayTeam) REFERENCES Teams(id),
-      FOREIGN KEY (competition) REFERENCES Competitions(id)
+      FOREIGN KEY (competition) REFERENCES Competitions(id),
+      FOREIGN KEY (seasonId) REFERENCES Seasons(id),
+      FOREIGN KEY (divisionId) REFERENCES Divisions(id)
     );
+
+    INSERT INTO Seasons (competitionId, name, startDate, endDate, status, seasonStartYear)
+    SELECT DISTINCT c.id, COALESCE(c.name, 'Legacy season'), COALESCE(c.startDate, '2000-01-01'), COALESCE(c.endDate, '2000-12-31'), COALESCE(c.status, 'Active'), c.seasonStartYear
+    FROM Competitions c
+    LEFT JOIN Seasons s ON s.competitionId = c.id AND s.seasonStartYear = c.seasonStartYear
+    WHERE c.seasonStartYear IS NOT NULL AND c.competitionId IS NULL AND c.division IS NULL AND s.id IS NULL
+    ON CONFLICT DO NOTHING;
+
+    DELETE FROM Seasons
+    WHERE competitionId IN (SELECT id FROM Competitions WHERE competitionId IS NOT NULL OR division IS NOT NULL)
+      AND NOT EXISTS (SELECT 1 FROM Fixtures WHERE Fixtures.seasonId = Seasons.id);
 
     -- Track which teams and users have approved a fixture.
     CREATE TABLE IF NOT EXISTS FixtureApprovals (
@@ -121,6 +157,61 @@ const initSchema = async () => {
       FOREIGN KEY (fixtureId) REFERENCES Fixtures(id), FOREIGN KEY (teamId) REFERENCES Teams(id)
     );
   `)
+
+  const addColumn = async (table, column, definition) => {
+    const columns = await fetchAll(db, `PRAGMA table_info(${table})`)
+    if (!columns.some(currentColumn => currentColumn.name === column)) {
+      await execute(db, `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`)
+    }
+  }
+
+  await addColumn('Competitions', 'leagueId', 'INTEGER')
+  await addColumn('Seasons', 'leagueId', 'INTEGER')
+  await addColumn('Teams', 'leagueId', 'INTEGER')
+  await addColumn('Fixtures', 'leagueId', 'INTEGER')
+
+  await execute(db, `
+    INSERT INTO Leagues(name, status)
+    SELECT c.name, COALESCE(c.status, 'Active')
+    FROM Competitions c
+    WHERE c.competitionId IS NULL AND c.division IS NULL
+      AND NOT EXISTS (SELECT 1 FROM Leagues l WHERE lower(trim(l.name)) = lower(trim(c.name)));
+
+    UPDATE Competitions
+    SET leagueId = (
+      SELECT l.id FROM Leagues l
+      WHERE lower(trim(l.name)) = lower(trim(Competitions.name))
+      LIMIT 1
+    )
+    WHERE competitionId IS NULL AND division IS NULL AND leagueId IS NULL;
+
+    UPDATE Competitions
+    SET leagueId = (
+      SELECT parent.leagueId FROM Competitions parent WHERE parent.id = Competitions.competitionId
+    )
+    WHERE competitionId IS NOT NULL AND leagueId IS NULL;
+
+    UPDATE Seasons
+    SET leagueId = (
+      SELECT c.leagueId FROM Competitions c WHERE c.id = Seasons.competitionId
+    )
+    WHERE leagueId IS NULL;
+
+    UPDATE Teams
+    SET leagueId = (
+      SELECT s.leagueId
+      FROM Divisions d
+      INNER JOIN Seasons s ON s.id = d.seasonId
+      WHERE d.id = Teams.division
+    )
+    WHERE leagueId IS NULL;
+
+    UPDATE Fixtures
+    SET leagueId = (
+      SELECT c.leagueId FROM Competitions c WHERE c.id = Fixtures.competition
+    )
+    WHERE leagueId IS NULL;
+  `)
 }
 
 // Add indexes used by the most common fixture, player, scorecard, and user queries.
@@ -132,6 +223,11 @@ const initPerformanceIndexes = async () => {
     'CREATE INDEX IF NOT EXISTS idx_players_team_approved ON Players(team, approved)',
     'CREATE INDEX IF NOT EXISTS idx_scorecards_fixture_team ON Scorecards(fixtureId, teamId)',
     'CREATE INDEX IF NOT EXISTS idx_competitions_season_division ON Competitions(seasonStartYear, division)',
+    'CREATE INDEX IF NOT EXISTS idx_seasons_competition ON Seasons(competitionId)',
+    'CREATE INDEX IF NOT EXISTS idx_competitions_league ON Competitions(leagueId)',
+    'CREATE INDEX IF NOT EXISTS idx_seasons_league ON Seasons(leagueId)',
+    'CREATE INDEX IF NOT EXISTS idx_teams_league ON Teams(leagueId)',
+    'CREATE INDEX IF NOT EXISTS idx_fixtures_league ON Fixtures(leagueId)',
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON Users(userName)'
   ]
 

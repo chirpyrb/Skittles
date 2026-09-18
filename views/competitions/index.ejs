@@ -1,15 +1,23 @@
 <h2>Competitions</h2>
 <br>
+<a href="/competitions/new">Add new competition</a>
 
-<% const seasons = [...new Set(Competitions.map(comp => comp.seasonStartYear).filter(Boolean))]; %>
-<% seasons.forEach(seasonStartYear => { %>
-    <div>
-        <h3><a href="/competitions/<%= seasonStartYear %>"><%= seasonStartYear %>/<%= String(seasonStartYear + 1).slice(-2) %> season</a></h3>
-        <p><%= Competitions.filter(comp => comp.seasonStartYear === seasonStartYear).map(comp => comp.name).join(', ') %></p>
-        <p>Status: <%= Competitions.find(comp => comp.seasonStartYear === seasonStartYear).status %></p>
-    </div>
-<% }) %>
-
-<% if (!seasons.length) { %>
-    <p>No seasons are available.</p>
+<% if (!Competitions || !Competitions.length) { %>
+    <p>No competitions are available.</p>
+<% } else { %>
+    <% const uniqueCompetitions = [...new Map(Competitions.map(comp => [comp.id, comp])).values()]; %>
+    <% uniqueCompetitions.forEach(comp => { %>
+        <div>
+            <h3><a href="/competitions/<%= comp.id %>"><%= comp.name %></a></h3>
+            <p>
+                <% const seasonsForCompetition = Competitions.filter(c => c.id === comp.id && c.seasonId).map(c => c.seasonName || c.name); %>
+                <% if (seasonsForCompetition.length) { %>
+                    <%= seasonsForCompetition.join(', ') %>
+                <% } else { %>
+                    No seasons yet
+                <% } %>
+            </p>
+            <p>Status: <%= comp.status || 'Active' %></p>
+        </div>
+    <% }) %>
 <% } %>

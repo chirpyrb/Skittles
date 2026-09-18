@@ -169,32 +169,40 @@ async function importAlleys(content) {
     })
 }
 
-// Import teams after resolving alleys, divisions, and home-night values.
+// Import teams after resolving alleys, leagues, and home-night values.
 async function importTeams(content) {
     return importRows(content, {
         header: 'teamName',
         columns: [4, 5],
-        description: 'teamName, alleyName, divisionName, homeNight (or id, teamName, alleyId, divisionId, homeNight)',
+        description: 'teamName, alleyName, leagueName, homeNight (or id, teamName, alleyId, leagueId, homeNight)',
         resolve: async columns => {
             const teamName = columns.length === 5 ? columns[1] : columns[0]
             const alleyReference = columns.length === 5 ? columns[2] : columns[1]
-            const divisionReference = columns.length === 5 ? columns[3] : columns[2]
+            const leagueReference = columns.length === 5 ? columns[3] : columns[2]
             const homeNight = columns[columns.length - 1]
             const alley = await SQ3.fetchFirst(SQ3.db,
                 /^\d+$/.test(alleyReference) ? 'SELECT id FROM Alleys WHERE id = ?' : 'SELECT id FROM Alleys WHERE lower(trim(name)) = lower(trim(?))',
                 [alleyReference])
-            const division = await SQ3.fetchFirst(SQ3.db,
-                /^\d+$/.test(divisionReference) ? 'SELECT id FROM Divisions WHERE id = ?' : 'SELECT id FROM Divisions WHERE lower(trim(name)) = lower(trim(?))',
-                [divisionReference])
+            let league = await SQ3.fetchFirst(SQ3.db,
+                /^\d+$/.test(leagueReference) ? 'SELECT id FROM Leagues WHERE id = ?' : 'SELECT id FROM Leagues WHERE lower(trim(name)) = lower(trim(?))',
+                [leagueReference])
+            if (!league) {
+                const div = await SQ3.fetchFirst(SQ3.db,
+                    /^\d+$/.test(leagueReference) ? 'SELECT s.leagueId FROM Divisions d JOIN Seasons s ON s.id = d.seasonId WHERE d.id = ?' : 'SELECT s.leagueId FROM Divisions d JOIN Seasons s ON s.id = d.seasonId WHERE lower(trim(d.name)) = lower(trim(?))',
+                    [leagueReference])
+                if (div && div.leagueId) {
+                    league = { id: div.leagueId }
+                }
+            }
             const night = Number(homeNight)
             if (!alley) return { error: `alley '${alleyReference}' was not found.` }
-            if (!division) return { error: `division '${divisionReference}' was not found.` }
+            if (!league) return { error: `league '${leagueReference}' was not found.` }
             if (!Number.isInteger(night) || night < 1 || night > 7) return { error: 'homeNight must be a number from 1 to 7.' }
-            return { value: { teamName, alleyId: alley.id, divisionId: division.id, homeNight: night } }
+            return { value: { teamName, alleyId: alley.id, leagueId: league.id, homeNight: night } }
         },
         key: record => record.teamName.toLowerCase(),
         existing: record => SQ3.fetchFirst(SQ3.db, 'SELECT id FROM Teams WHERE lower(trim(teamName)) = lower(trim(?))', [record.teamName]),
-        insert: record => SQ3.execute(SQ3.db, 'INSERT INTO Teams(teamName,homeAlley,division,home_night) VALUES (?,?,?,?)', [record.teamName, record.alleyId, record.divisionId, record.homeNight])
+        insert: record => SQ3.execute(SQ3.db, 'INSERT INTO Teams(teamName,homeAlley,leagueId,home_night) VALUES (?,?,?,?)', [record.teamName, record.alleyId, record.leagueId, record.homeNight])
     })
 }
 

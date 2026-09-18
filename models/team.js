@@ -4,9 +4,9 @@ const SQ3 = require('../models/sql')
 async function initTable() {
 }
 
-// Find a team by name and return readable alley and division details.
+// Find a team by name and return readable alley, division, and league details.
 async function getTeamByName(teamName) {
-    const t = await SQ3.fetchFirst(SQ3.db, "SELECT Teams.id, Teams.teamName, Teams.homeAlley AS homeAlleyId, Teams.division AS divisionId, Teams.home_night AS homeNight, Alleys.name AS alleyName, Divisions.name AS divisionName FROM Teams LEFT JOIN Alleys ON Teams.homeAlley = Alleys.id LEFT JOIN Divisions ON Teams.division = Divisions.id WHERE Teams.teamName = ?;", [teamName])
+    const t = await SQ3.fetchFirst(SQ3.db, "SELECT Teams.id, Teams.teamName, Teams.homeAlley AS homeAlleyId, Teams.division AS divisionId, Teams.leagueId, Teams.home_night AS homeNight, Alleys.name AS alleyName, Divisions.name AS divisionName, Leagues.name AS leagueName FROM Teams LEFT JOIN Alleys ON Teams.homeAlley = Alleys.id LEFT JOIN Divisions ON Teams.division = Divisions.id LEFT JOIN Leagues ON Teams.leagueId = Leagues.id WHERE Teams.teamName = ?;", [teamName])
     if (!t) return null;
 
     return {
@@ -16,6 +16,8 @@ async function getTeamByName(teamName) {
         homeAlley: t.alleyName || (t.homeAlleyId ? `Alley #${t.homeAlleyId}` : '-'),
         divisionId: t.divisionId,
         division: t.divisionName || (t.divisionId ? `Division ${t.divisionId}` : '-'),
+        leagueId: t.leagueId,
+        league: t.leagueName || (t.leagueId ? `League #${t.leagueId}` : '-'),
         homeNight: t.homeNight
     }
 }
@@ -30,37 +32,56 @@ async function getTeamIdByName(teamName) {
 async function getTeamForFixtureByName(teamName) {
     const normalizedTeamName = String(teamName).replace(/[\u2018\u2019]/g, "'")
     return await SQ3.fetchFirst(SQ3.db,
-        "SELECT id, teamName, division, home_night FROM Teams WHERE lower(trim(replace(replace(teamName, char(8217), char(39)), char(8216), char(39)))) = lower(trim(?))",
+        "SELECT id, teamName, division, leagueId, home_night FROM Teams WHERE lower(trim(replace(replace(teamName, char(8217), char(39)), char(8216), char(39)))) = lower(trim(?))",
         [normalizedTeamName])
 }
 
-// Return all teams with readable alley, division, and home-night fields.
+// Return all teams with readable alley, division, league, and home-night fields.
 async function getAllTeams() {
-    const teams = await SQ3.fetchAll(SQ3.db, "SELECT Teams.id, Teams.teamName, Teams.homeAlley AS homeAlleyId, Teams.division AS divisionId, Teams.home_night AS homeNight, Alleys.name AS alleyName, Divisions.name AS divisionName FROM Teams LEFT JOIN Alleys ON Teams.homeAlley = Alleys.id LEFT JOIN Divisions ON Teams.division = Divisions.id ORDER BY Teams.teamName ASC;")
+    const teams = await SQ3.fetchAll(SQ3.db, "SELECT Teams.id, Teams.teamName, Teams.homeAlley AS homeAlleyId, Teams.division AS divisionId, Teams.leagueId, Teams.home_night AS homeNight, Alleys.name AS alleyName, Divisions.name AS divisionName, Leagues.name AS leagueName FROM Teams LEFT JOIN Alleys ON Teams.homeAlley = Alleys.id LEFT JOIN Divisions ON Teams.division = Divisions.id LEFT JOIN Leagues ON Teams.leagueId = Leagues.id ORDER BY Teams.teamName ASC;")
     
     return (teams || []).map(t => {
         const aName = t.alleyName || (t.homeAlleyId ? `Alley #${t.homeAlleyId}` : '-');
         const dName = t.divisionName || (t.divisionId ? `Division ${t.divisionId}` : '-');
+        const lName = t.leagueName || (t.leagueId ? `League #${t.leagueId}` : '-');
         return {
             id: t.id,
             teamName: t.teamName || `Team #${t.id}`,
             homeAlley: aName,
             division: dName,
+            leagueId: t.leagueId,
+            league: lName,
             homeNight: t.homeNight
         }
     })
 }
 
-// Insert a team with its home alley and division.
-async function createTeam(newTeamName, newTeamAlley, newTeamDiv) {
-    return await SQ3.execute(SQ3.db, 'INSERT INTO Teams(teamName,homeAlley,division) VALUES (?,?,?)', [newTeamName, newTeamAlley, newTeamDiv])
+// Fetch all teams belonging to a specific league.
+async function getTeamsForLeague(leagueId) {
+    const teams = await SQ3.fetchAll(SQ3.db,
+        "SELECT Teams.id, Teams.teamName, Teams.homeAlley AS homeAlleyId, Alleys.name AS alleyName " +
+        "FROM Teams " +
+        "LEFT JOIN Alleys ON Teams.homeAlley = Alleys.id " +
+        "WHERE Teams.leagueId = ? " +
+        "ORDER BY Teams.teamName ASC;", [leagueId])
+
+    return (teams || []).map(t => ({
+        id: t.id,
+        teamName: t.teamName,
+        homeAlley: t.alleyName || (t.homeAlleyId ? `Alley #${t.homeAlleyId}` : '-')
+    }))
 }
 
-// Update a team's name, home alley, division, and home night.
-async function updateTeam(teamId, teamName, homeAlley, divisionId, homeNight) {
+// Insert a team with its home alley and league.
+async function createTeam(newTeamName, newTeamAlley, leagueId) {
+    return await SQ3.execute(SQ3.db, 'INSERT INTO Teams(teamName,homeAlley,leagueId) VALUES (?,?,?)', [newTeamName, newTeamAlley, leagueId])
+}
+
+// Update a team's name, home alley, division, home night, and league.
+async function updateTeam(teamId, teamName, homeAlley, divisionId, homeNight, leagueId) {
     return await SQ3.execute(SQ3.db,
-        'UPDATE Teams SET teamName = ?, homeAlley = ?, division = ?, home_night = ? WHERE id = ?',
-        [teamName, homeAlley, divisionId, homeNight, teamId])
+        'UPDATE Teams SET teamName = ?, homeAlley = ?, division = ?, home_night = ?, leagueId = ? WHERE id = ?',
+        [teamName, homeAlley, divisionId, homeNight, leagueId, teamId])
 }
 
 // Count players and fixtures that reference a team.
@@ -107,6 +128,7 @@ module.exports = {
     getTeamIdByName,
     getTeamForFixtureByName,
     getAllTeams,
+    getTeamsForLeague,
     createTeam,
     updateTeam,
     getTeamDependencyCounts,

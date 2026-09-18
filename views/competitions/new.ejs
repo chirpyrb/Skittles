@@ -1,11 +1,17 @@
 <h2>New Competition</h2>
-<form action="/Competitions" method="post">
-    <label>Season Name:</label>
+<form action="/competitions" method="post">
+    <label>Competition name:</label>
+    <input type="text" name="competitionName" value="" required>
+
+    <label>Season name:</label>
     <input type="text" name="seasonName" value="">
+
     <label>Start date:</label>
     <input type="date" name="seasonStartDate" value="">
-    <label>Team Name:</label>
+
+    <label>End date:</label>
     <input type="date" name="seasonEndDate" value="">
-    <a href="/Competitions">Cancel</a>
+
+    <a href="/competitions">Cancel</a>
     <button type="submit">Create</button>
 </form>

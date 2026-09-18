@@ -14,6 +14,10 @@
     <span><a href="/alleys?alleyName=<%=team.homeAlley%>"><%=team.homeAlley%></a></span>
 </div>
 <div>
+    <span><b>League:</b></span>
+    <span><%= team.league || '-' %></span>
+</div>
+<div>
     <span><b>Current division:</b></span>
     <span><a href="/divisions?divName=<%=team.division%>"><%=team.division%></a></span>
 </div>

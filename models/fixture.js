@@ -4,7 +4,7 @@ const SQ3 = require('../models/sql')
 async function initTable() {
 }
 
-// Return every fixture with team, competition, division, date, and live-score details.
+// Return every fixture with league, competition, season, team, date, and live-score details.
 async function getAllFixtures() {
     // Returns a list of all fixtures.
     let fixtureList = await SQ3.fetchAll(SQ3.db,
@@ -18,14 +18,15 @@ async function getAllFixtures() {
         COALESCE(Away.teamName, 'BYE') AS awayTeam, \
         CASE WHEN Fixtures.status = 'Bye' THEN 1 ELSE COALESCE(Home.home_night, Away.home_night, 1) END AS matchDay, \
         matchDate, \
+        Fixtures.leagueId, \
         Fixtures.competition, \
-        Competitions.division, \
-        Divisions.name AS divisionName \
+        Fixtures.seasonId, \
+        Competitions.name AS competitionName, \
+        Competitions.name AS divisionName \
         FROM Fixtures \
         LEFT JOIN Teams Home ON Home.id = Fixtures.homeTeam \
         LEFT JOIN Teams Away ON Away.id = Fixtures.awayTeam \
         LEFT JOIN Competitions ON Competitions.id = Fixtures.competition \
-        LEFT JOIN Divisions ON Divisions.id = Competitions.division \
         ;")
 
     // Scan existing temporary score tables once instead of once per fixture.
@@ -60,14 +61,15 @@ async function getAllFixturesByTeamID(teamID) {
         COALESCE(Away.teamName, 'BYE') AS awayTeam, \
         CASE WHEN Fixtures.status = 'Bye' THEN 1 ELSE COALESCE(Home.home_night, Away.home_night, 1) END AS matchDay, \
         matchDate, \
+        Fixtures.leagueId, \
         Fixtures.competition, \
-        Competitions.division, \
-        Divisions.name AS divisionName \
+        Fixtures.seasonId, \
+        Competitions.name AS competitionName, \
+        Competitions.name AS divisionName \
         FROM Fixtures \
         LEFT JOIN Teams Home ON Home.id = Fixtures.homeTeam \
         LEFT JOIN Teams Away ON Away.id = Fixtures.awayTeam \
         LEFT JOIN Competitions ON Competitions.id = Fixtures.competition \
-        LEFT JOIN Divisions ON Divisions.id = Competitions.division \
         WHERE Fixtures.homeTeam = ? OR Fixtures.awayTeam = ?;",
         [teamID, teamID])
 
@@ -177,6 +179,12 @@ async function getFixtureInfo(id) {
         Away.teamName AS awayTeam, \
         Home.captainId AS homeCaptainId, \
         Away.captainId AS awayCaptainId, \
+        Fixtures.leagueId, \
+        Fixtures.competition AS competitionId, \
+        Fixtures.seasonId, \
+        Competitions.name AS competitionName, \
+        Leagues.name AS leagueName, \
+        Seasons.name AS seasonName, \
         matchDate, \
         status, \
         homeScore, \
@@ -184,6 +192,9 @@ async function getFixtureInfo(id) {
         FROM Fixtures \
         INNER JOIN Teams Home ON Home.id = Fixtures.homeTeam \
         INNER JOIN Teams Away ON Away.id = Fixtures.awayTeam \
+        LEFT JOIN Competitions ON Competitions.id = Fixtures.competition \
+        LEFT JOIN Leagues ON Leagues.id = Fixtures.leagueId \
+        LEFT JOIN Seasons ON Seasons.id = Fixtures.seasonId \
         WHERE Fixtures.id = ?;",
         id)
     return fixtureInfo
@@ -231,8 +242,14 @@ async function beginGame(gameid, userid) {
 }
 
 // Insert a fixture connecting two teams to a competition.
-async function createFixture(homeTeam, awayTeam, matchDate, comp, status = null) {
-    return await SQ3.execute(SQ3.db, 'INSERT INTO Fixtures(homeTeam,awayTeam,matchDate,competition,status) VALUES (?,?,?,?,?);', [homeTeam, awayTeam, matchDate, comp, status])
+async function createFixture(homeTeam, awayTeam, matchDate, comp, status = null, seasonId = null, divisionId = null, leagueId = null) {
+    if (!leagueId) {
+        const competition = await SQ3.fetchFirst(SQ3.db, 'SELECT leagueId FROM Competitions WHERE id = ?', [comp])
+        leagueId = competition ? competition.leagueId : null
+    }
+    return await SQ3.execute(SQ3.db,
+        'INSERT INTO Fixtures(homeTeam,awayTeam,matchDate,leagueId,competition,status,seasonId,divisionId) VALUES (?,?,?,?,?,?,?,?);',
+        [homeTeam, awayTeam, matchDate, leagueId, comp, status, seasonId, divisionId])
 }
 
 // Parse one fixture CSV line while respecting quoted values.
@@ -280,7 +297,7 @@ function parseMondayDate(value) {
 }
 
 // Validate fixture CSV content, resolve references, and insert valid fixtures.
-async function importFixturesFromCSVContent(csvContent, competitionIds, divisionModel, teamModel) {
+async function importFixturesFromCSVContent(csvContent, competitionIds, competitionModel, teamModel, seasonId, leagueId) {
     const rows = csvContent.replace(/^\uFEFF/, '').split(/\r?\n/).filter(line => line.trim())
     const errors = []
     const fixtures = []
@@ -295,13 +312,13 @@ async function importFixturesFromCSVContent(csvContent, competitionIds, division
             return
         }
 
-        if (index === 0 && columns[0].toLowerCase() === 'division') return
+        if (index === 0 && ['division', 'competition'].includes(columns[0].toLowerCase())) return
         if (columns.length !== 4 || columns.some(column => !column)) {
-            errors.push(`Row ${index + 1}: expected division, Monday date, home team, away team.`)
+            errors.push(`Row ${index + 1}: expected competition name, Monday date, home team, away team.`)
             return
         }
 
-        const [divisionName, monday, homeTeamName, awayTeamName] = columns
+        const [competitionName, monday, homeTeamName, awayTeamName] = columns
         const homeIsBye = homeTeamName.toUpperCase() === 'BYE'
         const awayIsBye = awayTeamName.toUpperCase() === 'BYE'
         if (homeIsBye && awayIsBye) {
@@ -314,47 +331,34 @@ async function importFixturesFromCSVContent(csvContent, competitionIds, division
             return
         }
 
-        fixtures.push({ index, divisionName, monday: parsedMonday, homeTeamName, awayTeamName })
+        fixtures.push({ index, competitionName, monday: parsedMonday, homeTeamName, awayTeamName })
     })
 
     for (const row of fixtures) {
-        const division = await divisionModel.getDivisionByName(row.divisionName)
+        const competitionObj = await competitionModel.getCompetitionByName(row.competitionName)
         const homeTeam = row.homeTeamName.toUpperCase() === 'BYE' ? null : await teamModel.getTeamForFixtureByName(row.homeTeamName)
         const awayTeam = row.awayTeamName.toUpperCase() === 'BYE' ? null : await teamModel.getTeamForFixtureByName(row.awayTeamName)
 
-        if (!division) errors.push(`Row ${row.index + 1}: division '${row.divisionName}' was not found.`)
+        if (!competitionObj) errors.push(`Row ${row.index + 1}: competition '${row.competitionName}' was not found.`)
         if (!homeTeam && row.homeTeamName.toUpperCase() !== 'BYE') errors.push(`Row ${row.index + 1}: home team '${row.homeTeamName}' was not found.`)
         if (!awayTeam && row.awayTeamName.toUpperCase() !== 'BYE') errors.push(`Row ${row.index + 1}: away team '${row.awayTeamName}' was not found.`)
-        if ((!homeTeam && row.homeTeamName.toUpperCase() !== 'BYE') || (!awayTeam && row.awayTeamName.toUpperCase() !== 'BYE') || !division) continue
+        if ((!homeTeam && row.homeTeamName.toUpperCase() !== 'BYE') || (!awayTeam && row.awayTeamName.toUpperCase() !== 'BYE') || !competitionObj) continue
 
         const realTeam = homeTeam || awayTeam
-        if (realTeam.division !== division.id) {
-            errors.push(`Row ${row.index + 1}: team '${realTeam.teamName}' is not in '${row.divisionName}'.`)
-        }
+        if (realTeam.leagueId !== leagueId) errors.push(`Row ${row.index + 1}: team '${realTeam.teamName}' is not in this league.`)
         if (!Number.isInteger(realTeam.home_night) || realTeam.home_night < 1 || realTeam.home_night > 7) {
             errors.push(`Row ${row.index + 1}: team '${realTeam.teamName}' has no valid home night.`)
         }
-        if (homeTeam && awayTeam && homeTeam.division !== division.id) {
-            errors.push(`Row ${row.index + 1}: home team '${row.homeTeamName}' is not in '${row.divisionName}'.`)
-        }
-        if (homeTeam && awayTeam && awayTeam.division !== division.id) {
-            errors.push(`Row ${row.index + 1}: away team '${row.awayTeamName}' is not in '${row.divisionName}'.`)
-        }
-
         const resolvedRow = {
             ...row,
-            division,
+            competitionObj,
             homeTeam,
             awayTeam,
-            competitionId: competitionIds[division.id],
+            competitionId: competitionObj.id,
             playedDate: row.homeTeamName.toUpperCase() === 'BYE'
                 ? row.monday
                 : new Date(Date.UTC(Number(row.monday.slice(0, 4)), Number(row.monday.slice(5, 7)) - 1, Number(row.monday.slice(8, 10)) + homeTeam.home_night - 1)).toISOString().slice(0, 10),
             status: row.homeTeamName.toUpperCase() === 'BYE' || row.awayTeamName.toUpperCase() === 'BYE' ? 'Bye' : null
-        }
-
-        if (!resolvedRow.competitionId) {
-            errors.push(`Row ${row.index + 1}: no competition exists for '${row.divisionName}' in the active season.`)
         }
 
         const fixtureKey = `${resolvedRow.competitionId}|${homeTeam ? homeTeam.id : 'BYE'}|${awayTeam ? awayTeam.id : 'BYE'}|${row.monday}`
@@ -379,7 +383,7 @@ async function importFixturesFromCSVContent(csvContent, competitionIds, division
     if (errors.length) return { imported: 0, errors }
 
     for (const row of fixtures) {
-        await createFixture(row.homeTeam ? row.homeTeam.id : null, row.awayTeam ? row.awayTeam.id : null, row.monday, row.competitionId, row.status)
+        await createFixture(row.homeTeam ? row.homeTeam.id : null, row.awayTeam ? row.awayTeam.id : null, row.monday, row.competitionId, row.status, seasonId, null, leagueId)
     }
 
     return { imported: fixtures.length, errors: [] }

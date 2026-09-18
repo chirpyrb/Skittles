@@ -1,0 +1,13 @@
+<h2>Leagues</h2>
+<p><a href="/leagues/new">Add league</a></p>
+
+<% if (!leagues.length) { %>
+    <p>No leagues are available.</p>
+<% } else { %>
+    <% leagues.forEach(currentLeague => { %>
+        <div>
+            <h3><a href="/leagues/<%= currentLeague.id %>"><%= currentLeague.name %></a></h3>
+            <p><%= currentLeague.competitionCount %> competitions, <%= currentLeague.seasonCount %> seasons</p>
+        </div>
+    <% }) %>
+<% } %>

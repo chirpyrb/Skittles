@@ -1,20 +1,47 @@
-<label>Competition:</label>
-<select name="comp">
-    <% compList.forEach(comp => { %>
-        <option label="<%= comp.name %>" value="<%= comp.id %>">
+<label for="leagueId">League:</label>
+<select id="leagueId" name="leagueId" required>
+    <% leagues.forEach(league => { %>
+        <option value="<%= league.id %>" <%= (typeof selectedLeagueId !== 'undefined' && Number(selectedLeagueId) === league.id) ? 'selected' : '' %>><%= league.name %></option>
     <% }) %>
 </select>
-<label>Home team:</label>
-<select name="homeTeam">
+
+<label for="comp">Competition:</label>
+<select id="comp" name="comp" required>
+    <% if (compList && compList.length) { %>
+        <% compList.forEach(comp => { %>
+            <option value="<%= comp.id %>"><%= comp.name %></option>
+        <% }) %>
+    <% } else { %>
+        <option value="">No competitions available</option>
+    <% } %>
+</select>
+
+<label for="seasonId">Season:</label>
+<select id="seasonId" name="seasonId">
+    <% if (seasonList && seasonList.length) { %>
+        <% seasonList.forEach(season => { %>
+            <option value="<%= season.id %>"><%= season.name %></option>
+        <% }) %>
+    <% } else { %>
+        <option value="">No seasons available</option>
+    <% } %>
+</select>
+
+<label for="homeTeam">Home team:</label>
+<select id="homeTeam" name="homeTeam">
+    <option value="">BYE</option>
     <% teamList.forEach(team => { %>
-        <option label="<%= team.teamName %>" value="<%= team.id %>">
+        <option value="<%= team.id %>"><%= team.teamName %></option>
     <% }) %>
 </select>
-<label>Away team:</label>
-<select name="awayTeam">
+
+<label for="awayTeam">Away team:</label>
+<select id="awayTeam" name="awayTeam">
+    <option value="">BYE</option>
     <% teamList.forEach(team => { %>
-        <option label="<%= team.teamName %>" value="<%= team.id %>">
+        <option value="<%= team.id %>"><%= team.teamName %></option>
     <% }) %>
 </select>
-<label>Match date:</label>
-<input type="date" name="matchDate" value="">
+
+<label for="matchDate">Match date:</label>
+<input id="matchDate" type="date" name="matchDate" value="" required>

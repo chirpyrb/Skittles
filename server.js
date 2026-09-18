@@ -55,6 +55,7 @@ const divRouter = require('./routes/divisions')
 const playerRouter = require('./routes/players')
 const seasonsRouter = require('./routes/competitions')
 const fixtureRouter = require('./routes/fixtures')
+const leagueRouter = require('./routes/leagues')
 const SQ3 = require('./models/sql')
 
 
@@ -66,6 +67,7 @@ app.use('/divisions', divRouter)
 app.use('/players', playerRouter)
 app.use('/competitions', seasonsRouter)
 app.use('/fixtures', fixtureRouter)
+app.use('/leagues', leagueRouter)
 app.use('/users', require('./routes/users'))
 
 async function initDatabase() {

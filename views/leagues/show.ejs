@@ -1,0 +1,49 @@
+<h2><%= league.name %></h2>
+
+<h3>Teams</h3>
+<% if (!teams || !teams.length) { %>
+    <p>No teams have been added to this league.</p>
+<% } else { %>
+    <ul>
+        <% teams.forEach(t => { %>
+            <li><a href="/teams?teamName=<%= encodeURIComponent(t.teamName) %>"><strong><%= t.teamName %></strong></a> (Home Alley: <%= t.homeAlley %>)</li>
+        <% }) %>
+    </ul>
+<% } %>
+<p><a href="/teams/new?leagueId=<%= league.id %>" role="button">Add team to this league</a></p>
+
+<h3>Competitions</h3>
+<% if (!competitions.length) { %>
+    <p>No competitions have been added.</p>
+<% } else { %>
+    <ul>
+        <% competitions.forEach(currentCompetition => { %>
+            <li><%= currentCompetition.name %></li>
+        <% }) %>
+    </ul>
+<% } %>
+<form action="/leagues/<%= league.id %>/competitions" method="post">
+    <label for="competitionName">Competition name</label>
+    <input id="competitionName" type="text" name="name" required>
+    <button type="submit">Add competition</button>
+</form>
+
+<h3>Seasons</h3>
+<% if (!seasons.length) { %>
+    <p>No seasons have been added.</p>
+<% } else { %>
+    <ul>
+        <% seasons.forEach(season => { %>
+            <li><%= season.name %> (<%= season.startDate %> to <%= season.endDate %>)</li>
+        <% }) %>
+    </ul>
+<% } %>
+<form action="/leagues/<%= league.id %>/seasons" method="post">
+    <label for="seasonName">Season name</label>
+    <input id="seasonName" type="text" name="name" required>
+    <label for="startDate">Start date</label>
+    <input id="startDate" type="date" name="startDate" required>
+    <label for="endDate">End date</label>
+    <input id="endDate" type="date" name="endDate" required>
+    <button type="submit">Add season</button>
+</form>

@@ -1,2 +1,10 @@
 <label>Division name</label>
 <input type="text" name="newDivName" value="">
+
+<label>Season</label>
+<select name="seasonId" required>
+    <option value="" disabled selected>Select a season</option>
+    <% seasons.forEach(season => { %>
+        <option value="<%= season.id %>"><%= season.name %></option>
+    <% }) %>
+</select>

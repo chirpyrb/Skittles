@@ -18,8 +18,18 @@
     </label>
 
     <label>
+        League
+        <select name="leagueId" required>
+            <% (leagues || []).forEach(league => { %>
+                <option value="<%= league.id %>" <%= league.id === team.leagueId ? 'selected' : '' %>><%= league.name %></option>
+            <% }) %>
+        </select>
+    </label>
+
+    <label>
         Division
-        <select name="division" required>
+        <select name="division">
+            <option value="">None</option>
             <% divList.forEach(div => { %>
                 <option value="<%= div.id %>" <%= div.id === team.division ? 'selected' : '' %>><%= div.name %></option>
             <% }) %>

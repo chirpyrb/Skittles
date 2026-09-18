@@ -3,6 +3,7 @@ const router = express.Router()
 const multer = require('multer')
 
 const fixture = require('../models/fixture')
+const league = require('../models/league')
 const auth = require('../models/user')
 const player = require('../models/player.js')
 const scorecard = require('../models/scorecard.js')
@@ -18,16 +19,9 @@ function requireRegisteredUser(req, res, next) {
 // Get all fixtures.
 router.get('/', async (req, res) => {
     try {
-        const currentSeason = await competition.ensureCurrentSeason()
-        const allCompetitions = await competition.getAllCompetitions()
-        const activeCompetitionIds = new Set(
-            allCompetitions
-                .filter(currentCompetition => currentCompetition.seasonStartYear === currentSeason.seasonStartYear)
-                .map(currentCompetition => currentCompetition.id)
-        )
-
+        const currentSeason = await league.getCurrentSeason()
         const fixtureList = (await fixture.getAllFixtures())
-            .filter(currentFixture => activeCompetitionIds.has(currentFixture.competition))
+            .filter(currentFixture => !currentSeason || currentFixture.seasonId === currentSeason.id)
 
         // Sort fixtures by date.
         const groupedFixtures = fixture.groupFixturesByMonth(fixtureList)
@@ -158,8 +152,11 @@ function requireFixtureUploadAccess(req, res, next) {
 // New fixture
 router.get('/new', async (req, res) => {
     const teamList = await team.getAllTeams()
-    const compList = await competition.getAllCompetitions()
-    res.render('fixtures/new', { teamList: teamList, compList: compList })
+    const leagues = await league.getAllLeagues()
+    const selectedLeagueId = req.query.leagueId ? Number(req.query.leagueId) : (leagues.length ? leagues[0].id : null)
+    const compList = selectedLeagueId ? await league.getCompetitionsForLeague(selectedLeagueId) : []
+    const seasonList = selectedLeagueId ? await league.getSeasonsForLeague(selectedLeagueId) : []
+    res.render('fixtures/new', { teamList, compList, seasonList, leagues, selectedLeagueId })
 })
 
 router.get('/bulk-upload', requireFixtureUploadAccess, (req, res) => {
@@ -183,27 +180,30 @@ router.post('/bulk-upload', requireFixtureUploadAccess, (req, res, next) => {
         }
 
         try {
-            const currentSeason = await competition.ensureCurrentSeason()
+            const currentSeason = await league.getCurrentSeason()
             if (!currentSeason) {
                 return res.status(400).render('fixtures/bulkUpload', {
                     imported: null,
-                    errors: ['Create an active competition before uploading fixtures.']
+                    errors: ['Create an active league season before uploading fixtures.']
                 })
             }
 
-            const currentCompetitions = await competition.getAllCompetitions()
-            const competitionIds = currentCompetitions
-                .filter(currentCompetition => currentCompetition.seasonStartYear === currentSeason.seasonStartYear)
-                .reduce((ids, currentCompetition) => {
-                    ids[currentCompetition.division] = currentCompetition.id
+            const currentCompetitions = await league.getCompetitionsForLeague(currentSeason.leagueId)
+            const competitionIds = currentCompetitions.reduce((ids, currentCompetition) => {
+                    ids[currentCompetition.id] = currentCompetition.id
                     return ids
                 }, {})
+            const competitionModel = {
+                getCompetitionByName: name => league.getCompetitionByName(currentSeason.leagueId, name)
+            }
 
             const result = await fixture.importFixturesFromCSVContent(
                 req.file.buffer.toString('utf8'),
                 competitionIds,
-                division,
-                team
+                competitionModel,
+                team,
+                currentSeason.id,
+                currentSeason.leagueId
             )
 
             if (result.errors.length) {
@@ -218,16 +218,23 @@ router.post('/bulk-upload', requireFixtureUploadAccess, (req, res, next) => {
 })
 
 router.post('/', async (req, res) => {
-    const homeTeam = req.body.homeTeam
-    const awayTeam = req.body.awayTeam
+    const homeTeam = req.body.homeTeam ? Number(req.body.homeTeam) : null
+    const awayTeam = req.body.awayTeam ? Number(req.body.awayTeam) : null
     const matchDate = req.body.matchDate
-    const comp = req.body.comp
-    console.log(homeTeam, awayTeam, matchDate)
+    const leagueId = req.body.leagueId ? Number(req.body.leagueId) : null
+    const comp = req.body.comp ? Number(req.body.comp) : null
+    const seasonId = req.body.seasonId ? Number(req.body.seasonId) : null
+
+    if ((!homeTeam && !awayTeam) || !matchDate || !comp) {
+        return res.status(400).send('At least one team, match date, and competition are required.')
+    }
+
     try {
-        await fixture.createFixture(homeTeam, awayTeam, matchDate, comp)
+        await fixture.createFixture(homeTeam, awayTeam, matchDate, comp, null, seasonId, null, leagueId)
         res.redirect('/fixtures')
     } catch (err) {
         console.error(err)
+        res.status(500).send('Unable to create fixture.')
     }
 })
 

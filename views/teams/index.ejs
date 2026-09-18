@@ -8,10 +8,10 @@
     </div>
 </div>
 <% if (allTeams && allTeams.length > 0) { %>
-    <% const teamsByDivision = allTeams.reduce((groups, team) => {
-        const division = team.division || 'Division not set'
-        if (!groups[division]) groups[division] = []
-        groups[division].push(team)
+    <% const teamsByLeague = allTeams.reduce((groups, team) => {
+        const leagueName = team.league || 'League not set'
+        if (!groups[leagueName]) groups[leagueName] = []
+        groups[leagueName].push(team)
         return groups
     }, {}) %>
     <table>
@@ -20,21 +20,23 @@
                 <th>Team Name</th>
                 <th>Home Alley</th>
                 <th>Home Day</th>
+                <th>League</th>
                 <th>Division</th>
             </tr>
         </thead>
         <tbody>
-            <% Object.keys(teamsByDivision).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).forEach(division => { %>
+            <% Object.keys(teamsByLeague).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).forEach(leagueName => { %>
                 <tr class="team-division-heading">
-                    <th colspan="4"><%= division %></th>
+                    <th colspan="5"><%= leagueName %></th>
                 </tr>
-                <% teamsByDivision[division].forEach(team => { %>
+                <% teamsByLeague[leagueName].forEach(team => { %>
                 <tr>
                     <td>
                         <a href="/teams?teamName=<%= encodeURIComponent(team.teamName || team.name || ('Team ' + team.id)) %>"><strong><%= team.teamName || team.name || ('Team ' + team.id) %></strong></a>
                     </td>
                     <td><%= team.homeAlley || '-' %></td>
                     <td><%= ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][Number(team.homeNight) - 1] || '-' %></td>
+                    <td><%= team.league || '-' %></td>
                     <td><%= team.division || '-' %></td>
                 </tr>
                 <% }) %>
