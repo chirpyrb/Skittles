@@ -17,7 +17,7 @@ async function getAllFixtures() {
         COALESCE(Home.teamName, 'BYE') AS homeTeam, \
         COALESCE(Away.teamName, 'BYE') AS awayTeam, \
         CASE WHEN Fixtures.status = 'Bye' THEN 1 ELSE COALESCE(Home.home_night, Away.home_night, 1) END AS matchDay, \
-        matchDate, \
+        Fixtures.matchDate, \
         Fixtures.leagueId, \
         Fixtures.competition, \
         Fixtures.seasonId, \
@@ -60,7 +60,7 @@ async function getAllFixturesByTeamID(teamID) {
         COALESCE(Home.teamName, 'BYE') AS homeTeam, \
         COALESCE(Away.teamName, 'BYE') AS awayTeam, \
         CASE WHEN Fixtures.status = 'Bye' THEN 1 ELSE COALESCE(Home.home_night, Away.home_night, 1) END AS matchDay, \
-        matchDate, \
+        Fixtures.matchDate, \
         Fixtures.leagueId, \
         Fixtures.competition, \
         Fixtures.seasonId, \
@@ -185,10 +185,10 @@ async function getFixtureInfo(id) {
         Competitions.name AS competitionName, \
         Leagues.name AS leagueName, \
         Seasons.name AS seasonName, \
-        matchDate, \
-        status, \
-        homeScore, \
-        awayScore \
+        Fixtures.matchDate, \
+        Fixtures.status, \
+        Fixtures.homeScore, \
+        Fixtures.awayScore \
         FROM Fixtures \
         INNER JOIN Teams Home ON Home.id = Fixtures.homeTeam \
         INNER JOIN Teams Away ON Away.id = Fixtures.awayTeam \
