@@ -1,5 +1,8 @@
 <div class="directory-toolbar">
-    <h2>Pub directory</h2>
+    <div>
+        <h2>Pub Directory</h2>
+        <p class="muted">Venues, alleys, and home teams</p>
+    </div>
     <div class="directory-actions">
         <% if (user && (user.access === 'dev' || user.access === 'LeagueSecretary')) { %>
             <a href="/pubs/bulk-upload" role="button">Bulk upload pubs</a>
@@ -7,24 +10,74 @@
         <a href="/pubs/new" role="button">Add pub</a>
     </div>
 </div>
-<form action="/pubs" method="GET">
-    <label>Pub name</label>
-    <input type="text" name="pubSearchName">
+
+<form action="/pubs" method="GET" class="pub-search-form">
+    <label for="pubSearchInput">Search pub name</label>
+    <input id="pubSearchInput" type="text" name="pubSearchName" placeholder="Enter pub name...">
     <button type="submit">Search</button>
 </form>
-<div class="directory-list">
-    <% pubListArray.forEach(pub => { %>
-        <div class="directory-item directory-item-row">
-            <div>
-                <strong><%= pub.name %></strong>
-                <div class="muted"><%= pub.location || 'Location not set' %></div>
+
+<div class="directory-list pub-directory-list">
+    <% if (!pubListArray || pubListArray.length === 0) { %>
+        <p class="muted">No pubs found.</p>
+    <% } else { %>
+        <% pubListArray.forEach(pub => { %>
+            <div class="directory-item pub-card-item">
+                <div class="pub-card-main">
+                    <div class="pub-card-header">
+                        <div>
+                            <h3 class="pub-title"><%= pub.name %></h3>
+                            <div class="muted pub-location"><%= pub.location || 'Location not set' %></div>
+                        </div>
+                        <% if (user && ['dev', 'LeagueSecretary', 'TeamSecratary', 'TeamSecretary'].includes(user.access)) { %>
+                            <a href="/pubs/edit/<%= pub.id %>" role="button" class="btn-sm">Edit Pub</a>
+                        <% } %>
+                    </div>
+
+                    <!-- Listed Alleys & Home Teams at this Pub -->
+                    <div class="pub-teams-section">
+                        <h4 class="pub-teams-heading">Home Teams &amp; Alleys</h4>
+                        <% if (!pub.alleys || pub.alleys.length === 0) { %>
+                            <p class="muted small">No alleys or home teams listed for this pub.</p>
+                        <% } else { %>
+                            <% pub.alleys.forEach(alley => { %>
+                                <div class="alley-block">
+                                    <div class="alley-name">
+                                        📍 <strong><%= alley.name %></strong>
+                                    </div>
+                                    <% if (!alley.teams || alley.teams.length === 0) { %>
+                                        <p class="muted small">No home teams currently play on this alley.</p>
+                                    <% } else { %>
+                                        <ul class="pub-team-chips">
+                                            <% alley.teams.forEach(t => { %>
+                                                <li class="pub-team-chip">
+                                                    <a href="/teams?teamName=<%= encodeURIComponent(t.teamName) %>">
+                                                        <strong><%= t.teamName %></strong>
+                                                    </a>
+                                                    <% if (t.homeNight) { %>
+                                                        <span class="home-night-badge" title="Home Play Night">
+                                                            <%= t.homeNight %>s
+                                                        </span>
+                                                    <% } %>
+                                                    <% if (t.divisionName) { %>
+                                                        <span class="division-badge"><%= t.divisionName %></span>
+                                                    <% } %>
+                                                </li>
+                                            <% }) %>
+                                        </ul>
+                                    <% } %>
+                                </div>
+                            <% }) %>
+                        <% } %>
+                    </div>
+                </div>
+
+                <% if (pub.location) { %>
+                    <div class="pub-map-col">
+                        <iframe class="pub-map" src="https://www.google.com/maps?q=<%= encodeURIComponent(pub.location) %>&output=embed" title="Map of <%= pub.name %>" loading="lazy"></iframe>
+                    </div>
+                <% } %>
             </div>
-            <% if (pub.location) { %>
-                <iframe class="pub-map" src="https://www.google.com/maps?q=<%= encodeURIComponent(pub.location) %>&output=embed" title="Map of <%= pub.name %>" loading="lazy"></iframe>
-            <% } %>
-            <% if (user && ['dev', 'LeagueSecretary', 'TeamSecratary', 'TeamSecretary'].includes(user.access)) { %>
-                <a href="/pubs/edit/<%= pub.id %>" role="button">Edit</a>
-            <% } %>
-        </div>
-    <% }) %>
+        <% }) %>
+    <% } %>
 </div>

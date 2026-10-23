@@ -1,0 +1,106 @@
+<div class="directory-toolbar">
+    <div>
+        <h2>League Tables</h2>
+        <p class="muted">Current standings and statistics by division</p>
+    </div>
+    
+    <% if (leagues && leagues.length > 0) { %>
+        <form action="/tables" method="get" class="table-filter-form">
+            <% if (leagues.length > 1) { %>
+                <label for="leagueIdSelect">League:
+                    <select id="leagueIdSelect" name="leagueId" onchange="this.form.submit()">
+                        <% leagues.forEach(l => { %>
+                            <option value="<%= l.id %>" <%= Number(l.id) === Number(selectedLeagueId) ? 'selected' : '' %>>
+                                <%= l.name %>
+                            </option>
+                        <% }) %>
+                    </select>
+                </label>
+            <% } %>
+
+            <% if (seasons && seasons.length > 0) { %>
+                <label for="seasonIdSelect">Season:
+                    <select id="seasonIdSelect" name="seasonId" onchange="this.form.submit()">
+                        <% seasons.forEach(s => { %>
+                            <option value="<%= s.id %>" <%= Number(s.id) === Number(selectedSeasonId) ? 'selected' : '' %>>
+                                <%= s.name %>
+                            </option>
+                        <% }) %>
+                    </select>
+                </label>
+            <% } %>
+
+            <noscript><button type="submit">Filter</button></noscript>
+        </form>
+    <% } %>
+</div>
+
+<% if (!tables || tables.length === 0) { %>
+    <p>No league tables are available.</p>
+<% } else { %>
+    <% tables.forEach(table => { %>
+        <section class="league-table-section">
+            <h3 class="table-division-heading"><%= table.competitionName %></h3>
+            
+            <% if (!table.standings || table.standings.length === 0) { %>
+                <p class="muted">No teams found for this division.</p>
+            <% } else { %>
+                <div class="table-responsive">
+                    <table class="standings-table">
+                        <thead>
+                            <tr>
+                                <th class="col-pos" title="Position">Pos</th>
+                                <th class="col-team">Team</th>
+                                <th class="col-num" title="Played">P</th>
+                                <th class="col-num" title="Won">W</th>
+                                <th class="col-num" title="Drawn">D</th>
+                                <th class="col-num" title="Lost">L</th>
+                                <th class="col-num" title="Pins For">PF</th>
+                                <th class="col-num" title="Pins Against">PA</th>
+                                <th class="col-num" title="Pin Difference">PD</th>
+                                <th class="col-pts" title="Points">Pts</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% 
+                                const totalTeams = table.standings.length;
+                                table.standings.forEach(row => { 
+                                    let zoneClass = '';
+                                    if (totalTeams >= 4) {
+                                        if (row.rank <= 2) zoneClass = 'promotion-zone';
+                                        else if (row.rank > totalTeams - 2) zoneClass = 'relegation-zone';
+                                    }
+                            %>
+                                <tr class="<%= zoneClass %>">
+                                    <td class="col-pos">
+                                        <span class="rank-badge"><%= row.rank %></span>
+                                    </td>
+                                    <td class="col-team">
+                                        <a href="/teams?teamName=<%= encodeURIComponent(row.teamName) %>">
+                                            <strong><%= row.teamName %></strong>
+                                        </a>
+                                    </td>
+                                    <td class="col-num"><%= row.played %></td>
+                                    <td class="col-num"><%= row.won %></td>
+                                    <td class="col-num"><%= row.drawn %></td>
+                                    <td class="col-num"><%= row.lost %></td>
+                                    <td class="col-num"><%= row.pinsFor %></td>
+                                    <td class="col-num"><%= row.pinsAgainst %></td>
+                                    <td class="col-num <%= row.pinDiff > 0 ? 'diff-positive' : (row.pinDiff < 0 ? 'diff-negative' : '') %>">
+                                        <%= row.pinDiff > 0 ? '+' + row.pinDiff : row.pinDiff %>
+                                    </td>
+                                    <td class="col-pts"><strong><%= row.points %></strong></td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            <% } %>
+        </section>
+    <% }) %>
+
+    <div class="table-legend">
+        <span class="legend-item"><span class="legend-swatch promotion-swatch"></span> Promotion zone (Top 2)</span>
+        <span class="legend-item"><span class="legend-swatch relegation-swatch"></span> Relegation zone (Bottom 2)</span>
+    </div>
+<% } %>

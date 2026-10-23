@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const league = require('../models/league')
 const team = require('../models/team')
+const division = require('../models/division')
 
 router.get('/', async (req, res) => {
     try {
@@ -36,7 +37,8 @@ router.get('/:leagueId', async (req, res) => {
             league: selectedLeague,
             competitions: await league.getCompetitionsForLeague(leagueId),
             seasons: await league.getSeasonsForLeague(leagueId),
-            teams: await team.getTeamsForLeague(leagueId)
+            teams: await team.getTeamsForLeague(leagueId),
+            tables: await division.getAllLeagueTables(leagueId)
         })
     } catch (error) {
         console.error(error)

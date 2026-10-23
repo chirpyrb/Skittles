@@ -23,8 +23,8 @@ router.get('/', async (req, res) => {
         const fixtureList = (await fixture.getAllFixtures())
             .filter(currentFixture => !currentSeason || currentFixture.seasonId === currentSeason.id)
 
-        // Sort fixtures by date.
-        const groupedFixtures = fixture.groupFixturesByMonth(fixtureList)
+        // Group fixtures by competition then month.
+        const groupedFixtures = fixture.groupFixturesByCompetitionAndMonth(fixtureList)
         res.render('fixtures/index', { user: req.session.user, groupedFixtures: groupedFixtures })
     } catch (err) {
         console.error(err)
@@ -68,6 +68,7 @@ router.get('/scorecard', requireRegisteredUser, async (req, res) => {
                     Position: s.Position,
                     hands: [0, 0, 0, 0, 0, 0, 0],
                     total: 0,
+                    bolters: 0,
                     floppers: 0,
                     squares: 0,
                     chances: 0
@@ -79,6 +80,7 @@ router.get('/scorecard', requireRegisteredUser, async (req, res) => {
                 playerScores[key].hands[s.Hand - 1] = score;
             }
             playerScores[key].total += score;
+            playerScores[key].bolters += parseInt(s.Bolters) || 0;
             playerScores[key].floppers += parseInt(s.isFlopper) || 0;
             playerScores[key].squares += parseInt(s.isSquare) || 0;
             playerScores[key].chances += parseInt(s.isChance) || 0;

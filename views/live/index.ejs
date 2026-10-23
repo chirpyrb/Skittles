@@ -1,0 +1,584 @@
+<div class="live-page-header">
+    <div>
+        <h2>Live Matchday Hub</h2>
+        <p class="muted">Live webcam stream, rotating division scores, and real-time videoprinter</p>
+    </div>
+    <div class="live-status-pill">
+        <span class="live-dot"></span>
+        <span id="liveStatusText">LIVE FEED ACTIVE</span>
+    </div>
+</div>
+
+<div class="live-layout">
+    <!-- Left / Main Area: Reserved for Live Video Feed from Webcam -->
+    <div class="live-main-content">
+        <div class="webcam-player-card">
+            <div class="webcam-header-bar">
+                <div class="webcam-title-info">
+                    <span class="live-cam-badge"><span class="cam-pulse"></span> ALLEY CAM 1</span>
+                    <strong id="webcamLocationName">Weymouth &amp; Portland Skittles — Alley 1</strong>
+                </div>
+                <div class="webcam-header-meta">
+                    <span class="cam-quality-tag" id="camQualityTag">LIVE HD</span>
+                </div>
+            </div>
+
+            <!-- Video Display Stage -->
+            <div class="webcam-stage" id="webcamStage">
+                <video id="webcamVideo" class="webcam-element" autoplay playsinline muted></video>
+                <canvas id="simulatedCamCanvas" class="simulated-cam-canvas"></canvas>
+
+                <!-- Standby / Permission Overlay -->
+                <div class="webcam-standby-overlay" id="webcamStandby">
+                    <div class="standby-icon">🎥</div>
+                    <h4>Live Alley Webcam Broadcast</h4>
+                    <p>Connect your camera or launch the simulated alley feed to view live match action.</p>
+                    <div class="standby-actions">
+                        <button type="button" id="btnStartWebcam" class="button button-cam-primary">
+                            <span>📷</span> Enable Webcam Stream
+                        </button>
+                        <button type="button" id="btnSimulateCam" class="button button-cam-secondary">
+                            <span>📺</span> Simulated Alley Cam
+                        </button>
+                    </div>
+                </div>
+
+                <div class="webcam-overlay-info" id="camOverlayInfo" style="display: none;">
+                    <span class="overlay-match-name" id="overlayMatchTitle">Division 1: Do-Nuts vs Whistlers</span>
+                    <span class="overlay-live-tag">● LIVE STREAM</span>
+                </div>
+            </div>
+
+            <!-- Webcam Controls Bar -->
+            <div class="webcam-controls-bar">
+                <div class="cam-control-left">
+                    <button type="button" id="btnCamPower" class="btn-cam-control" title="Toggle Webcam">
+                        ▶ Connect Cam
+                    </button>
+                    <button type="button" id="btnCamMute" class="btn-cam-control" title="Toggle Audio">
+                        🔇 Muted
+                    </button>
+                    <select id="cameraSelect" class="cam-device-select" title="Select Video Input Device">
+                        <option value="">Default Webcam</option>
+                    </select>
+                </div>
+                <div class="cam-control-right">
+                    <button type="button" id="btnCamFullscreen" class="btn-cam-control" title="Toggle Fullscreen">
+                        ⛶ Fullscreen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side Panel: Live Scores by Division (Shown 1 at a time, 5s transition) -->
+    <aside class="live-side-panel" id="liveSidePanel">
+        <div class="side-panel-header">
+            <div class="panel-header-top">
+                <h3>Live Scores</h3>
+                <div class="panel-nav-btns">
+                    <button type="button" id="btnPrevDiv" class="btn-panel-arrow" title="Previous Division">&lt;</button>
+                    <button type="button" id="btnNextDiv" class="btn-panel-arrow" title="Next Division">&gt;</button>
+                </div>
+            </div>
+            <div class="panel-rotation-indicator">
+                <span id="activeDivName" class="active-div-label">
+                    <%= (divisions && divisions.length > 0) ? divisions[0].divisionName : 'Division 1' %>
+                </span>
+                <span class="rotation-timer-badge" id="rotationTimerBadge">Auto-rotating 5s</span>
+            </div>
+        </div>
+
+        <div class="side-panel-carousel" id="sidePanelCarousel">
+            <% (divisions || []).forEach((div, idx) => { %>
+                <div class="panel-division-block <%= idx === 0 ? 'active' : '' %>" 
+                     id="panel-div-<%= div.divisionId %>" 
+                     data-division-name="<%= div.divisionName %>"
+                     data-index="<%= idx %>">
+                    <div class="panel-division-title">
+                        <span><%= div.divisionName %></span>
+                        <span class="active-count"><%= (div.fixtures || []).filter(f => f.status && f.status.includes('Progress')).length %> Live</span>
+                    </div>
+                    <div class="panel-fixture-list">
+                        <% if (!div.fixtures || div.fixtures.length === 0) { %>
+                            <p class="muted">No matches currently in progress.</p>
+                        <% } else { %>
+                            <% (div.fixtures || []).slice(0, 8).forEach(f => { %>
+                                <div class="panel-fixture-row <%= f.status && f.status.includes('Progress') ? 'is-live' : '' %>">
+                                    <div class="panel-teams-col">
+                                        <div class="panel-team-name"><%= f.homeTeam %></div>
+                                        <div class="panel-team-name"><%= f.awayTeam %></div>
+                                    </div>
+                                    <div class="panel-scores-col">
+                                        <div class="panel-score-val"><%= f.homeScore !== null ? f.homeScore : 0 %></div>
+                                        <div class="panel-score-val"><%= f.awayScore !== null ? f.awayScore : 0 %></div>
+                                    </div>
+                                    <div class="panel-status-col">
+                                        <span class="status-tag <%= f.status && f.status.includes('Progress') ? 'tag-live' : (f.status === 'Completed' || f.status === 'Confirmed' ? 'tag-final' : 'tag-sched') %>">
+                                            <%= f.status && f.status.includes('Progress') ? 'LIVE' : (f.status === 'Completed' || f.status === 'Confirmed' ? 'FT' : 'SCHED') %>
+                                        </span>
+                                    </div>
+                                </div>
+                            <% }) %>
+                        <% } %>
+                    </div>
+                </div>
+            <% }) %>
+        </div>
+
+        <!-- Carousel Dots -->
+        <div class="carousel-dots" id="carouselDots">
+            <% (divisions || []).forEach((div, idx) => { %>
+                <button type="button" class="dot-btn <%= idx === 0 ? 'active' : '' %>" data-index="<%= idx %>" title="<%= div.divisionName %>"></button>
+            <% }) %>
+        </div>
+    </aside>
+</div>
+
+<!-- Bottom Videoprinter Panel (7 Lines High) -->
+<section class="videoprinter-panel" aria-label="Live Events Videoprinter">
+    <div class="videoprinter-header">
+        <div class="printer-title">
+            <span class="printer-icon">📟</span>
+            <strong>VIDEOPRINTER FEED</strong>
+            <span class="printer-pulse"></span>
+        </div>
+        <div class="printer-controls">
+            <button type="button" id="btnTogglePrinter" class="btn-printer-action" title="Pause or resume feed">Pause</button>
+            <button type="button" id="btnClearPrinter" class="btn-printer-action" title="Clear printer lines">Clear</button>
+        </div>
+    </div>
+
+    <!-- Ticker viewport styled to display exactly 7 lines of text high -->
+    <div class="videoprinter-viewport" id="videoprinterViewport">
+        <div class="videoprinter-feed" id="videoprinterFeed">
+            <% (initialEvents || []).forEach(evt => { %>
+                <div class="printer-line printer-type-<%= (evt.type || 'INFO').toLowerCase() %>">
+                    <span class="printer-time">[<%= evt.timestamp %>]</span>
+                    <span class="printer-tag tag-<%= (evt.type || 'INFO').toLowerCase() %>"><%= evt.type %></span>
+                    <span class="printer-text"><%= evt.text %></span>
+                </div>
+            <% }) %>
+        </div>
+    </div>
+</section>
+
+<script>
+    (function() {
+        // --- 1. Right Side Panel: Division Carousel (1 Division at a time, 5s transition) ---
+        const divisionBlocks = Array.from(document.querySelectorAll('.panel-division-block'));
+        const dotBtns = Array.from(document.querySelectorAll('.dot-btn'));
+        const activeDivLabel = document.getElementById('activeDivName');
+        const btnPrev = document.getElementById('btnPrevDiv');
+        const btnNext = document.getElementById('btnNextDiv');
+        const liveSidePanel = document.getElementById('liveSidePanel');
+        let currentDivIndex = 0;
+        let rotationTimer = null;
+        let isRotationPaused = false;
+
+        function showDivision(index) {
+            if (!divisionBlocks.length) return;
+            currentDivIndex = (index + divisionBlocks.length) % divisionBlocks.length;
+
+            divisionBlocks.forEach((block, idx) => {
+                const isActive = idx === currentDivIndex;
+                block.classList.toggle('active', isActive);
+            });
+
+            dotBtns.forEach((dot, idx) => {
+                dot.classList.toggle('active', idx === currentDivIndex);
+            });
+
+            const activeBlock = divisionBlocks[currentDivIndex];
+            if (activeBlock && activeDivLabel) {
+                activeDivLabel.textContent = activeBlock.dataset.divisionName || `Division ${currentDivIndex + 1}`;
+            }
+        }
+
+        function nextDivision() {
+            showDivision(currentDivIndex + 1);
+        }
+
+        function prevDivision() {
+            showDivision(currentDivIndex - 1);
+        }
+
+        function startRotation() {
+            stopRotation();
+            rotationTimer = setInterval(() => {
+                if (!isRotationPaused) {
+                    nextDivision();
+                }
+            }, 5000); // 5s transition
+        }
+
+        function stopRotation() {
+            if (rotationTimer) clearInterval(rotationTimer);
+        }
+
+        if (btnPrev) btnPrev.addEventListener('click', () => { prevDivision(); startRotation(); });
+        if (btnNext) btnNext.addEventListener('click', () => { nextDivision(); startRotation(); });
+
+        dotBtns.forEach((dot, idx) => {
+            dot.addEventListener('click', () => {
+                showDivision(idx);
+                startRotation();
+            });
+        });
+
+        if (liveSidePanel) {
+            liveSidePanel.addEventListener('mouseenter', () => { isRotationPaused = true; });
+            liveSidePanel.addEventListener('mouseleave', () => { isRotationPaused = false; });
+        }
+
+        // Initialize rotation
+        showDivision(0);
+        startRotation();
+
+        // --- 2. Live Webcam Stream & Simulation Engine ---
+        const videoElem = document.getElementById('webcamVideo');
+        const canvasElem = document.getElementById('simulatedCamCanvas');
+        const standbyOverlay = document.getElementById('webcamStandby');
+        const camOverlayInfo = document.getElementById('camOverlayInfo');
+        const btnStartWebcam = document.getElementById('btnStartWebcam');
+        const btnSimulateCam = document.getElementById('btnSimulateCam');
+        const btnCamPower = document.getElementById('btnCamPower');
+        const btnCamMute = document.getElementById('btnCamMute');
+        const btnCamFullscreen = document.getElementById('btnCamFullscreen');
+        const cameraSelect = document.getElementById('cameraSelect');
+        const webcamStage = document.getElementById('webcamStage');
+
+        let mediaStream = null;
+        let isSimulating = false;
+        let animFrameId = null;
+
+        async function initWebcam(deviceId = null) {
+            if (animFrameId) cancelAnimationFrame(animFrameId);
+            isSimulating = false;
+            if (canvasElem) canvasElem.style.display = 'none';
+
+            try {
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                }
+
+                const constraints = {
+                    video: deviceId ? { exact: deviceId } : true,
+                    audio: false
+                };
+
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+                if (videoElem) {
+                    videoElem.srcObject = mediaStream;
+                    videoElem.style.display = 'block';
+                    await videoElem.play();
+                }
+
+                if (standbyOverlay) standbyOverlay.style.display = 'none';
+                if (camOverlayInfo) camOverlayInfo.style.display = 'flex';
+                if (btnCamPower) btnCamPower.textContent = '⏸️ Stop Cam';
+
+                populateCameraDevices();
+            } catch (err) {
+                console.warn('Webcam permission denied or unavailable:', err);
+                startSimulatedAlleyCam();
+            }
+        }
+
+        function stopWebcam() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            if (videoElem) {
+                videoElem.srcObject = null;
+                videoElem.style.display = 'none';
+            }
+            if (animFrameId) cancelAnimationFrame(animFrameId);
+            if (canvasElem) canvasElem.style.display = 'none';
+            if (standbyOverlay) standbyOverlay.style.display = 'flex';
+            if (camOverlayInfo) camOverlayInfo.style.display = 'none';
+            if (btnCamPower) btnCamPower.textContent = '▶ Connect Cam';
+        }
+
+        async function populateCameraDevices() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices || !cameraSelect) return;
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                cameraSelect.innerHTML = '<option value="">Default Webcam</option>';
+                videoDevices.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.textContent = device.label || `Camera ${index + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function startSimulatedAlleyCam() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            if (videoElem) videoElem.style.display = 'none';
+            if (standbyOverlay) standbyOverlay.style.display = 'none';
+            if (camOverlayInfo) camOverlayInfo.style.display = 'flex';
+            if (canvasElem) canvasElem.style.display = 'block';
+            if (btnCamPower) btnCamPower.textContent = '⏹️ Stop Feed';
+
+            isSimulating = true;
+            runSkittlesCanvasSimulation();
+        }
+
+        // Animated Skittles Alley Camera Graphics Canvas
+        function runSkittlesCanvasSimulation() {
+            if (!canvasElem) return;
+            const ctx = canvasElem.getContext('2d');
+            let frame = 0;
+            let ballX = 60;
+            let ballSpeed = 3.5;
+            let pinsHit = false;
+
+            function render() {
+                if (!isSimulating) return;
+                const width = canvasElem.clientWidth || 800;
+                const height = canvasElem.clientHeight || 450;
+                canvasElem.width = width;
+                canvasElem.height = height;
+
+                // Alley Lane Background
+                const grad = ctx.createLinearGradient(0, 0, 0, height);
+                grad.addColorStop(0, '#1a1814');
+                grad.addColorStop(0.3, '#3a2e1d');
+                grad.addColorStop(1, '#855d31');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, width, height);
+
+                // Perspective Alley Floor
+                ctx.fillStyle = '#b58348';
+                ctx.beginPath();
+                ctx.moveTo(width * 0.2, height * 0.35);
+                ctx.lineTo(width * 0.8, height * 0.35);
+                ctx.lineTo(width * 0.95, height);
+                ctx.lineTo(width * 0.05, height);
+                ctx.closePath();
+                ctx.fill();
+
+                // Wood planks lines
+                ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+                ctx.lineWidth = 2;
+                for (let i = 1; i < 8; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(width * 0.2 + (width * 0.6 * (i / 8)), height * 0.35);
+                    ctx.lineTo(width * 0.05 + (width * 0.9 * (i / 8)), height);
+                    ctx.stroke();
+                }
+
+                // Diamond Pin layout at end of lane
+                const pinCenterX = width * 0.5;
+                const pinCenterY = height * 0.42;
+                const pinPositions = [
+                    [0, -24], [-16, -10], [16, -10], [-32, 4], [0, 4], [32, 4], [-16, 18], [16, 18], [0, 32]
+                ];
+
+                pinPositions.forEach(([dx, dy], idx) => {
+                    let px = pinCenterX + dx * 1.5;
+                    let py = pinCenterY + dy * 1.2;
+
+                    if (pinsHit && Math.abs(ballX - pinCenterX) < 40) {
+                        px += (Math.random() - 0.5) * 16;
+                        py += (Math.random() - 0.5) * 16;
+                    }
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.ellipse(px, py, 6, 14, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Red stripe
+                    ctx.fillStyle = '#dc2626';
+                    ctx.fillRect(px - 5, py - 6, 10, 3);
+                });
+
+                // Rolling Ball
+                ballX += ballSpeed;
+                if (ballX > width * 0.85) {
+                    ballX = width * 0.15;
+                    pinsHit = false;
+                }
+                if (Math.abs(ballX - pinCenterX) < 15) {
+                    pinsHit = true;
+                }
+
+                const ballY = height * 0.85 - (ballX / width) * 200;
+                ctx.fillStyle = '#1e293b';
+                ctx.beginPath();
+                ctx.arc(ballX, ballY, 18, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#e2e8f0';
+                ctx.beginPath();
+                ctx.arc(ballX - 4, ballY - 4, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Live Camera Overlay Text
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.6)';
+                ctx.fillRect(16, 16, 220, 32);
+                ctx.fillStyle = '#22c55e';
+                ctx.beginPath();
+                ctx.arc(32, 32, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 13px Arial';
+                ctx.fillText('LIVE ALLEY FEED (CAM 1)', 45, 36);
+
+                frame++;
+                animFrameId = requestAnimationFrame(render);
+            }
+            render();
+        }
+
+        if (btnStartWebcam) btnStartWebcam.addEventListener('click', () => initWebcam());
+        if (btnSimulateCam) btnSimulateCam.addEventListener('click', startSimulatedAlleyCam);
+        if (btnCamPower) {
+            btnCamPower.addEventListener('click', () => {
+                if (mediaStream || isSimulating) stopWebcam();
+                else initWebcam();
+            });
+        }
+
+        if (btnCamMute && videoElem) {
+            btnCamMute.addEventListener('click', () => {
+                videoElem.muted = !videoElem.muted;
+                btnCamMute.textContent = videoElem.muted ? '🔇 Muted' : '🔊 Sound On';
+            });
+        }
+
+        if (btnCamFullscreen && webcamStage) {
+            btnCamFullscreen.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    webcamStage.requestFullscreen().catch(console.error);
+                } else {
+                    document.exitFullscreen().catch(console.error);
+                }
+            });
+        }
+
+        if (cameraSelect) {
+            cameraSelect.addEventListener('change', () => {
+                if (cameraSelect.value) initWebcam(cameraSelect.value);
+            });
+        }
+
+        // --- 3. Bottom Videoprinter Polling Engine ---
+        let isPrinterPaused = false;
+        const viewport = document.getElementById('videoprinterViewport');
+        const feed = document.getElementById('videoprinterFeed');
+        const togglePrinterBtn = document.getElementById('btnTogglePrinter');
+        const clearPrinterBtn = document.getElementById('btnClearPrinter');
+        const knownEventIds = new Set();
+
+        document.querySelectorAll('.printer-line').forEach(el => {
+            if (el.dataset.id) knownEventIds.add(el.dataset.id);
+        });
+
+        if (viewport) viewport.scrollTop = viewport.scrollHeight;
+
+        if (togglePrinterBtn) {
+            togglePrinterBtn.addEventListener('click', () => {
+                isPrinterPaused = !isPrinterPaused;
+                togglePrinterBtn.textContent = isPrinterPaused ? 'Resume' : 'Pause';
+                togglePrinterBtn.classList.toggle('is-paused', isPrinterPaused);
+            });
+        }
+
+        if (clearPrinterBtn) {
+            clearPrinterBtn.addEventListener('click', () => {
+                if (feed) feed.innerHTML = '';
+            });
+        }
+
+        async function pollLiveFeed() {
+            if (isPrinterPaused) return;
+            try {
+                const res = await fetch('/live/api/feed');
+                if (!res.ok) return;
+                const data = await res.json();
+
+                if (data.events && data.events.length) {
+                    let hasNew = false;
+                    data.events.slice().reverse().forEach(evt => {
+                        if (evt.id && knownEventIds.has(evt.id)) return;
+                        if (evt.id) knownEventIds.add(evt.id);
+
+                        hasNew = true;
+                        const line = document.createElement('div');
+                        line.className = `printer-line printer-type-${(evt.type || 'INFO').toLowerCase()} line-new`;
+                        line.dataset.id = evt.id || '';
+                        line.innerHTML = `
+                            <span class="printer-time">[${evt.timestamp}]</span>
+                            <span class="printer-tag tag-${(evt.type || 'INFO').toLowerCase()}">${evt.type}</span>
+                            <span class="printer-text">${evt.text}</span>
+                        `;
+                        feed.appendChild(line);
+                    });
+
+                    if (hasNew && viewport) {
+                        viewport.scrollTop = viewport.scrollHeight;
+                    }
+                }
+
+                if (data.divisions && data.divisions.length) {
+                    updateDivisionScores(data.divisions);
+                }
+            } catch (err) {
+                console.error('Error fetching live API feed:', err);
+            }
+        }
+
+        function updateDivisionScores(divisions) {
+            divisions.forEach(div => {
+                const block = document.getElementById(`panel-div-${div.divisionId}`);
+                if (!block) return;
+                const list = block.querySelector('.panel-fixture-list');
+                if (!list || !div.fixtures) return;
+
+                const rowsHtml = div.fixtures.slice(0, 8).map(f => {
+                    const isLive = f.status && f.status.includes('Progress');
+                    const isFT = f.status === 'Completed' || f.status === 'Confirmed';
+                    const tagClass = isLive ? 'tag-live' : (isFT ? 'tag-final' : 'tag-sched');
+                    const tagText = isLive ? 'LIVE' : (isFT ? 'FT' : 'SCHED');
+
+                    return `
+                        <div class="panel-fixture-row ${isLive ? 'is-live' : ''}">
+                            <div class="panel-teams-col">
+                                <div class="panel-team-name">${f.homeTeam}</div>
+                                <div class="panel-team-name">${f.awayTeam}</div>
+                            </div>
+                            <div class="panel-scores-col">
+                                <div class="panel-score-val">${f.homeScore !== null ? f.homeScore : 0}</div>
+                                <div class="panel-score-val">${f.awayScore !== null ? f.awayScore : 0}</div>
+                            </div>
+                            <div class="panel-status-col">
+                                <span class="status-tag ${tagClass}">${tagText}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                list.innerHTML = rowsHtml;
+            });
+        }
+
+        setInterval(pollLiveFeed, 4000);
+
+        // Auto-start webcam or simulation
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            initWebcam().catch(() => startSimulatedAlleyCam());
+        } else {
+            startSimulatedAlleyCam();
+        }
+    })();
+</script>

@@ -1,39 +1,122 @@
 <style>
-    .tab-buttons {
-        margin-bottom: 0;
-        border-bottom: 2px solid #ccc;
+    .fixture-grouping-container {
+        margin-top: 15px;
     }
 
-    .tab-btn {
-        background: #f1f1f1;
-        border: none;
-        outline: none;
+    .comp-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 20px;
+        border-bottom: 2px solid #cbd5e1;
+        padding-bottom: 12px;
+    }
+
+    .comp-btn {
+        background: #f1f5f9;
+        color: #334155;
+        border: 1px solid #cbd5e1;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-weight: 600;
         cursor: pointer;
-        padding: 10px 20px;
-        font-size: 16px;
-        transition: 0.3s;
-        border-radius: 5px 5px 0 0;
-        margin-right: 5px;
+        font-size: 0.95em;
+        transition: all 0.2s ease;
     }
 
-    .tab-btn:hover {
-        background-color: #ddd;
+    .comp-btn:hover {
+        background: #e2e8f0;
     }
 
-    .tab-btn.active {
-        background-color: #ccc;
-        font-weight: bold;
+    .comp-btn.active {
+        background: #0f172a;
+        color: #ffffff;
+        border-color: #0f172a;
     }
 
-    .tab-content {
-        display: none;
-        padding: 15px;
-        border: 1px solid #ccc;
-        border-top: none;
-        border-radius: 0 0 5px 5px;
+    .competition-block {
+        margin-bottom: 30px;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
-    .tab-content.active-tab {
+    .competition-header {
+        margin-top: 0;
+        margin-bottom: 15px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #0f172a;
+        color: #0f172a;
+        font-size: 1.3em;
+    }
+
+    .month-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 15px;
+    }
+
+    .month-btn {
+        background: #f8fafc;
+        color: #475569;
+        border: 1px solid #cbd5e1;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 0.88em;
+        cursor: pointer;
+    }
+
+    .month-btn:hover {
+        background: #e2e8f0;
+    }
+
+    .month-btn.active {
+        background: #2563eb;
+        color: #ffffff;
+        border-color: #2563eb;
+        font-weight: 600;
+    }
+
+    .month-block {
+        margin-bottom: 20px;
+    }
+
+    .month-header {
+        color: #1e293b;
+        font-size: 1.1em;
+        margin-top: 15px;
+        margin-bottom: 10px;
+        padding-bottom: 4px;
+        border-bottom: 1px dashed #cbd5e1;
+    }
+
+    .date-header {
+        margin-top: 12px;
+        margin-bottom: 8px;
+        color: #475569;
+        font-size: 0.95em;
+        font-weight: 600;
+    }
+
+    .fixture-row {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        padding: 8px 12px;
+        margin-bottom: 6px;
+        transition: background-color 0.15s ease;
+    }
+
+    .fixture-row:hover {
+        background: #f1f5f9;
+    }
+
+    .fixture-row a {
+        text-decoration: none;
+        color: inherit;
         display: block;
     }
 </style>
@@ -45,83 +128,135 @@
 <% } %>
 <br>
 
-<div>
+<div class="fixture-grouping-container">
+    <% const compKeys = Object.keys(groupedFixtures || {}).sort(); %>
 
-    <% 
-        const monthKeys=Object.keys(groupedFixtures).sort(); 
-        let defaultMonthKey = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
-        let activeIndex = monthKeys.indexOf(defaultMonthKey);
-        if (activeIndex === -1 && monthKeys.length > 0) activeIndex = 0;
-    %>
+    <% if (compKeys.length > 0) { %>
+        <!-- Top Level Competition Navigation -->
+        <div class="comp-nav">
+            <button class="comp-btn active" data-comp="ALL" onclick="filterCompetition('ALL')">All Competitions</button>
+            <% compKeys.forEach((compKey) => { %>
+                <button class="comp-btn" data-comp="<%= compKey %>" onclick="filterCompetition('<%= compKey %>')">
+                    <%= groupedFixtures[compKey].name || compKey %>
+                </button>
+            <% }) %>
+        </div>
 
-        <% if (monthKeys.length> 0) { %>
-            <div class="tab-buttons">
-                <% monthKeys.forEach((key, i)=> { %>
-                    <button class="tab-btn <%= i === activeIndex ? 'active' : '' %>" id="<%= key %>"
-                        onclick="openTab(event, 'tab-<%= i %>')">
-                        <%= groupedFixtures[key].label %>
-                    </button>
-                    <% }) %>
-            </div>
+        <!-- Competition Blocks -->
+        <% compKeys.forEach((compKey, cIdx) => { %>
+            <% 
+                const comp = groupedFixtures[compKey] || {};
+                const monthKeys = comp.months ? Object.keys(comp.months).sort() : [];
+            %>
+            <div id="comp-block-<%= cIdx %>" class="competition-block" data-comp="<%= compKey %>">
+                <h3 class="competition-header"><%= comp.name || compKey %></h3>
 
-            <% monthKeys.forEach((key, i)=> { %>
-                <div id="tab-<%= i %>" class="tab-content <%= i === activeIndex ? 'active-tab' : '' %>">
-                    <h3>
-                        <%= groupedFixtures[key].label %>
-                    </h3>
-                    <% const dayKeys=groupedFixtures[key].days ? Object.keys(groupedFixtures[key].days).sort() : []; %>
-                        <% if (dayKeys.length===0) { %>
-                            <p>No fixtures scheduled.</p>
+                <% if (monthKeys.length > 0) { %>
+                    <!-- Month Sub-Navigation -->
+                    <div class="month-nav">
+                        <button class="month-btn active" data-month="ALL" onclick="filterMonth(<%= cIdx %>, 'ALL')">All Months</button>
+                        <% monthKeys.forEach((mKey) => { %>
+                            <button class="month-btn" data-month="<%= mKey %>" onclick="filterMonth(<%= cIdx %>, '<%= mKey %>')">
+                                <%= comp.months[mKey].label %>
+                            </button>
+                        <% }) %>
+                    </div>
+
+                    <!-- Month Blocks -->
+                    <% monthKeys.forEach((mKey) => { %>
+                        <% 
+                            const month = comp.months[mKey];
+                            const dayKeys = month.days ? Object.keys(month.days).sort() : [];
+                        %>
+                        <div class="month-block" data-month="<%= mKey %>">
+                            <h4 class="month-header"><%= month.label %></h4>
+
+                            <% if (dayKeys.length === 0) { %>
+                                <p style="color: #64748b;">No fixtures scheduled for this month.</p>
                             <% } %>
-                                <% dayKeys.forEach(dayKey=> { %>
-                                    <h4
-                                        style="margin-top: 20px; border-bottom: 1px solid #ddd; padding-bottom: 5px; color: #444;">
-                                        <%= groupedFixtures[key].days[dayKey].displayDate %>
-                                    </h4>
-                                    <% groupedFixtures[key].days[dayKey].divisionGroups.forEach(divisionGroup => { %>
-                                        <h5 class="fixture-division-heading"><%= divisionGroup.name %></h5>
-                                        <% divisionGroup.fixtures.forEach(fixture=> { %>
-                                        <div class="fixture-row <%= fixture.status === 'Bye' ? 'bye-fixture' : '' %>" data-fixture-id="<%= fixture.id %>" data-live-score="<%= ['Awaiting teams', 'Live', 'In Progress', 'Provisional'].includes(fixture.status) ? 'true' : 'false' %>">
-                                            <% if (fixture.status === 'Bye') { %>
-                                                <div class="bye-fixture-content">
-                                                    <strong><%= fixture.homeTeam !== 'BYE' ? fixture.homeTeam : fixture.awayTeam %></strong>
-                                                    <span class="bye-label">BYE</span>
-                                                </div>
-                                            <% } else { %>
-                                            <a href="/fixtures/scorecard?gameid=<%=fixture.id%>">
-                                                <span
-                                                    style="display: inline-block; width: 40%; text-align: right; font-weight: bold;">
+
+                            <% dayKeys.forEach(dayKey => { %>
+                                <div class="date-header"><%= month.days[dayKey].displayDate %></div>
+
+                                <% month.days[dayKey].fixtures.forEach(fixture => { %>
+                                    <div class="fixture-row <%= fixture.status === 'Bye' ? 'bye-fixture' : '' %>"
+                                         data-fixture-id="<%= fixture.id %>"
+                                         data-live-score="<%= ['Awaiting teams', 'Live', 'In Progress', 'Provisional'].includes(fixture.status) ? 'true' : 'false' %>">
+                                        <% if (fixture.status === 'Bye') { %>
+                                            <div class="bye-fixture-content">
+                                                <strong><%= fixture.homeTeam !== 'BYE' ? fixture.homeTeam : fixture.awayTeam %></strong>
+                                                <span class="bye-label">BYE</span>
+                                            </div>
+                                        <% } else { %>
+                                            <a href="/fixtures/scorecard?gameid=<%= fixture.id %>">
+                                                <span style="display: inline-block; width: 40%; text-align: right; font-weight: bold;">
                                                     <%= fixture.homeTeam %>
-                                                        <span class="fixture-score home-score"
-                                                            style="margin-left: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;">
-                                                            <%= fixture.homeScore != null ? fixture.homeScore : '-' %>
-                                                        </span>
+                                                    <span class="fixture-score home-score" style="margin-left: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;">
+                                                        <%= fixture.homeScore != null ? fixture.homeScore : '-' %>
+                                                    </span>
                                                 </span>
-                                                <span
-                                                    style="display: inline-block; width: 10%; text-align: center; color: #777;">vs</span>
-                                                <span
-                                                    style="display: inline-block; width: 40%; text-align: left; font-weight: bold;">
-                                                    <span class="fixture-score away-score"
-                                                        style="margin-right: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;">
+                                                <span style="display: inline-block; width: 10%; text-align: center; color: #777;">vs</span>
+                                                <span style="display: inline-block; width: 40%; text-align: left; font-weight: bold;">
+                                                    <span class="fixture-score away-score" style="margin-right: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;">
                                                         <%= fixture.awayScore != null ? fixture.awayScore : '-' %>
                                                     </span>
-                                                            <%= fixture.awayTeam %>
+                                                    <%= fixture.awayTeam %>
                                                 </span>
                                             </a>
-                                            <% } %>
-                                        </div>
-                                        <% }) %>
-                                    <% }) %>
-                                            <% }) %>
-                </div>
-                <% }) %>
-                    <% } else { %>
-                        <p>No fixtures available.</p>
-                        <% } %>
-
+                                        <% } %>
+                                    </div>
+                                <% }) %>
+                            <% }) %>
+                        </div>
+                    <% }) %>
+                <% } else { %>
+                    <p style="color: #64748b;">No fixtures scheduled for this competition.</p>
+                <% } %>
+            </div>
+        <% }) %>
+    <% } else { %>
+        <p>No fixtures available.</p>
+    <% } %>
 </div>
 
 <script>
+    function filterCompetition(targetComp) {
+        const compBlocks = document.querySelectorAll('.competition-block');
+        const compBtns = document.querySelectorAll('.comp-btn');
+
+        compBtns.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.comp === targetComp);
+        });
+
+        compBlocks.forEach(block => {
+            if (targetComp === 'ALL' || block.dataset.comp === targetComp) {
+                block.style.display = 'block';
+            } else {
+                block.style.display = 'none';
+            }
+        });
+    }
+
+    function filterMonth(compIdx, targetMonth) {
+        const compBlock = document.getElementById(`comp-block-${compIdx}`);
+        if (!compBlock) return;
+
+        const monthBtns = compBlock.querySelectorAll('.month-btn');
+        const monthBlocks = compBlock.querySelectorAll('.month-block');
+
+        monthBtns.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.month === targetMonth);
+        });
+
+        monthBlocks.forEach(block => {
+            if (targetMonth === 'ALL' || block.dataset.month === targetMonth) {
+                block.style.display = 'block';
+            } else {
+                block.style.display = 'none';
+            }
+        });
+    }
+
     async function refreshLiveScores() {
         try {
             const response = await fetch('/fixtures/live-scores')
@@ -144,27 +279,6 @@
         refreshLiveScores()
         setInterval(refreshLiveScores, 10000)
     }
-
-    function openTab(evt, tabId) {
-        var i, tabcontent, tablinks;
-
-        // Hide all tab content
-        tabcontent = document.getElementsByClassName("tab-content");
-        for (i = 0; i < tabcontent.length; i++) {
-            tabcontent[i].className = tabcontent[i].className.replace(" active-tab", "");
-        }
-
-        // Remove 'active' class from all buttons
-        tablinks = document.getElementsByClassName("tab-btn");
-        for (i = 0; i < tablinks.length; i++) {
-            tablinks[i].className = tablinks[i].className.replace(" active", "");
-        }
-
-        // Show current tab and add 'active' class to clicked button
-        document.getElementById(tabId).className += " active-tab";
-        evt.currentTarget.className += " active";
-    }
-
 </script>
 
 <br><br>

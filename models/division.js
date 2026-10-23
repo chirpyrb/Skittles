@@ -97,14 +97,29 @@ async function getAllTeamsFromDivision(divisionId) {
 }
 
 // Calculate played, result, pin, point, and rank totals for a division.
+// Calculate played, result, pin, point, and rank totals for a division/competition.
 async function calculateStandings(seasonId, divisionId) {
     await initTable()
+    let divId = divisionId
+    let sId = seasonId
+
+    if (divId === undefined && sId !== undefined) {
+        divId = sId
+        sId = null
+    }
+
+    if (!divId) return []
+
     const teams = await SQ3.fetchAll(SQ3.db, `
-        SELECT DISTINCT Teams.id, Teams.teamName AS teamName
-        FROM Teams
-        INNER JOIN Fixtures ON Fixtures.homeTeam = Teams.id OR Fixtures.awayTeam = Teams.id
-        INNER JOIN Competitions ON Competitions.id = Fixtures.competition
-        WHERE Fixtures.competition = ? AND Competitions.division = ?`, [seasonId, divisionId])
+        SELECT DISTINCT t.id, t.teamName AS teamName
+        FROM Teams t
+        WHERE t.division = ?
+           OR t.id IN (
+               SELECT homeTeam FROM Fixtures WHERE (competition = ? OR divisionId = ?) AND homeTeam IS NOT NULL
+               UNION
+               SELECT awayTeam FROM Fixtures WHERE (competition = ? OR divisionId = ?) AND awayTeam IS NOT NULL
+           )
+        ORDER BY t.teamName ASC`, [divId, divId, divId, divId, divId])
     
     const teamMap = {};
     (teams || []).forEach(t => {
@@ -122,11 +137,17 @@ async function calculateStandings(seasonId, divisionId) {
         }
     })
 
-    let sql = 'SELECT * FROM Fixtures WHERE homeScore IS NOT NULL AND awayScore IS NOT NULL'
-    const params = []
-    if (seasonId) {
-        sql += ' AND competition = ?'
-        params.push(seasonId)
+    let sql = `
+        SELECT * FROM Fixtures 
+        WHERE (competition = ? OR divisionId = ?) 
+          AND homeScore IS NOT NULL 
+          AND awayScore IS NOT NULL
+    `
+    const params = [divId, divId]
+
+    if (sId) {
+        sql += ' AND (seasonId = ? OR seasonId IS NULL)'
+        params.push(sId)
     }
 
     const completedFixtures = await SQ3.fetchAll(SQ3.db, sql, params);
@@ -177,6 +198,7 @@ async function calculateStandings(seasonId, divisionId) {
         if (b.points !== a.points) return b.points - a.points;
         if (b.pinDiff !== a.pinDiff) return b.pinDiff - a.pinDiff;
         if (b.pinsFor !== a.pinsFor) return b.pinsFor - a.pinsFor;
+        if (b.won !== a.won) return b.won - a.won;
         return (a.teamName || '').localeCompare(b.teamName || '');
     })
 
@@ -187,11 +209,50 @@ async function calculateStandings(seasonId, divisionId) {
     return standings
 }
 
+// Return league tables for every division in a given league and season.
+async function getAllLeagueTables(leagueId = null, seasonId = null) {
+    await initTable()
+
+    let comps = []
+    if (leagueId) {
+        comps = await SQ3.fetchAll(SQ3.db, `
+            SELECT * FROM Competitions
+            WHERE leagueId = ? AND competitionId IS NOT NULL
+            ORDER BY id ASC
+        `, [leagueId])
+    }
+
+    if (!comps || comps.length === 0) {
+        comps = await SQ3.fetchAll(SQ3.db, `
+            SELECT * FROM Competitions
+            WHERE competitionId IS NOT NULL
+            ORDER BY id ASC
+        `)
+    }
+
+    if (!comps || comps.length === 0) {
+        comps = await SQ3.fetchAll(SQ3.db, `SELECT id, name FROM Divisions ORDER BY id ASC`)
+    }
+
+    const tables = []
+    for (const comp of comps) {
+        const standings = await calculateStandings(seasonId, comp.id)
+        tables.push({
+            competitionId: comp.id,
+            competitionName: comp.name,
+            leagueId: comp.leagueId,
+            standings
+        })
+    }
+
+    return tables
+}
+
 // Move the bottom and top teams between the three divisions using standings.
 async function executePromotionAndRelegation(seasonId) {
-    const standingsDiv1 = await calculateStandings(seasonId, 1);
-    const standingsDiv2 = await calculateStandings(seasonId, 2);
-    const standingsDiv3 = await calculateStandings(seasonId, 3);
+    const standingsDiv1 = await calculateStandings(seasonId, 2);
+    const standingsDiv2 = await calculateStandings(seasonId, 3);
+    const standingsDiv3 = await calculateStandings(seasonId, 4);
 
     const changes = {
         relegatedToDiv2: [],
@@ -204,7 +265,7 @@ async function executePromotionAndRelegation(seasonId) {
     if (standingsDiv1 && standingsDiv1.length > 2) {
         const relegated1 = standingsDiv1.slice(-2);
         for (const t of relegated1) {
-            await SQ3.execute(SQ3.db, 'UPDATE Teams SET division = 2 WHERE id = ?', [t.teamId]);
+            await SQ3.execute(SQ3.db, 'UPDATE Teams SET division = 3 WHERE id = ?', [t.teamId]);
             changes.relegatedToDiv2.push(t.teamName);
         }
     }
@@ -213,7 +274,7 @@ async function executePromotionAndRelegation(seasonId) {
     if (standingsDiv2 && standingsDiv2.length >= 2) {
         const promoted2 = standingsDiv2.slice(0, 2);
         for (const t of promoted2) {
-            await SQ3.execute(SQ3.db, 'UPDATE Teams SET division = 1 WHERE id = ?', [t.teamId]);
+            await SQ3.execute(SQ3.db, 'UPDATE Teams SET division = 2 WHERE id = ?', [t.teamId]);
             changes.promotedToDiv1.push(t.teamName);
         }
     }
@@ -222,7 +283,7 @@ async function executePromotionAndRelegation(seasonId) {
     if (standingsDiv2 && standingsDiv2.length > 4) {
         const relegated2 = standingsDiv2.slice(-2);
         for (const t of relegated2) {
-            await SQ3.execute(SQ3.db, 'UPDATE Teams SET division = 3 WHERE id = ?', [t.teamId]);
+            await SQ3.execute(SQ3.db, 'UPDATE Teams SET division = 4 WHERE id = ?', [t.teamId]);
             changes.relegatedToDiv3.push(t.teamName);
         }
     }
@@ -231,7 +292,7 @@ async function executePromotionAndRelegation(seasonId) {
     if (standingsDiv3 && standingsDiv3.length >= 2) {
         const promoted3 = standingsDiv3.slice(0, 2);
         for (const t of promoted3) {
-            await SQ3.execute(SQ3.db, 'UPDATE Teams SET division = 2 WHERE id = ?', [t.teamId]);
+            await SQ3.execute(SQ3.db, 'UPDATE Teams SET division = 3 WHERE id = ?', [t.teamId]);
             changes.promotedToDiv2.push(t.teamName);
         }
     }
@@ -247,5 +308,7 @@ module.exports = {
     createDivision,
     getAllTeamsFromDivision,
     calculateStandings,
+    getAllLeagueTables,
     executePromotionAndRelegation
 }
+

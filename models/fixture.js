@@ -161,6 +161,65 @@ function groupFixturesByMonth(fixtureList) {
     return groupedFixtures
 }
 
+// Group fixtures by competition, then month, then day.
+function groupFixturesByCompetitionAndMonth(fixtureList) {
+    const grouped = {}
+    for (let f of fixtureList) {
+        const compName = f.competitionName || f.divisionName || 'Unassigned Competition'
+        if (!grouped[compName]) {
+            grouped[compName] = {
+                name: compName,
+                months: {}
+            }
+        }
+
+        let monthKey = 'Unscheduled'
+        let monthLabel = 'Unscheduled'
+        let displayDate = 'Unscheduled'
+        let sortableDate = '0000-00-00'
+
+        if (f.matchDate && !isNaN(f.matchDate.getTime())) {
+            const y = f.matchDate.getFullYear()
+            const m = String(f.matchDate.getMonth() + 1).padStart(2, '0')
+            const d = String(f.matchDate.getDate()).padStart(2, '0')
+            monthKey = `${y}-${m}`
+            monthLabel = f.matchDate.toLocaleString('en-GB', { month: 'long', year: 'numeric' })
+            displayDate = f.matchDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+            sortableDate = `${y}-${m}-${d}`
+        }
+
+        f.displayDate = displayDate
+
+        if (!grouped[compName].months[monthKey]) {
+            grouped[compName].months[monthKey] = {
+                label: monthLabel,
+                days: {}
+            }
+        }
+
+        if (!grouped[compName].months[monthKey].days[sortableDate]) {
+            grouped[compName].months[monthKey].days[sortableDate] = {
+                displayDate: displayDate,
+                fixtures: []
+            }
+        }
+
+        grouped[compName].months[monthKey].days[sortableDate].fixtures.push(f)
+    }
+
+    Object.values(grouped).forEach(comp => {
+        Object.values(comp.months).forEach(month => {
+            Object.values(month.days).forEach(day => {
+                day.fixtures.sort((first, second) => {
+                    return (first.homeTeam || '').localeCompare(second.homeTeam || '')
+                })
+            })
+        })
+    })
+
+    return grouped
+}
+
 // Return the current status of one fixture.
 async function getFixtureStatus(id) {
     // Returns the status of a given fixture.
@@ -626,6 +685,7 @@ module.exports = {
     getTempScoresForUser,
     importFixturesFromCSV,
     groupFixturesByMonth,
+    groupFixturesByCompetitionAndMonth,
     updateFixtureScore,
     getFixtureApprovalStatus,
     approveFixture,

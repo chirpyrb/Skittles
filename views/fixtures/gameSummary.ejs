@@ -87,69 +87,52 @@
 </div>
 
 <div>
-    <% if (typeof scores !=='undefined' && scores && scores.length> 0) { %>
+    <% if (typeof scores !== 'undefined' && scores && scores.length > 0) { %>
         <h3>Provisional/Live Scores</h3>
-        <table border="1" cellpadding="5" cellspacing="0">
+        <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; text-align: center;">
             <thead>
-                <tr>
-                    <th>Player</th>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="text-align: left; padding: 8px;">Player</th>
                     <th>Hand 1</th>
                     <th>Hand 2</th>
                     <th>Hand 3</th>
-                    <th>Floppers</th>
-                    <th>Squares</th>
-                    <th>Chances</th>
                     <th>Hand 4</th>
                     <th>Hand 5</th>
                     <th>Hand 6</th>
                     <th>Hand 7</th>
                     <th>Total</th>
+                    <th>Bolters</th>
+                    <th>Floppers</th>
+                    <th>Squares</th>
+                    <th>Chances</th>
                 </tr>
             </thead>
             <tbody>
-                <% for(let s of scores) { %>
+                <% for (let s of scores) { %>
                     <tr>
-                        <td>
-                            <strong>
-                                <%= s.playerName %>
+                        <td style="text-align: left; padding: 8px;">
+                            <strong><%= s.playerName %></strong><br>
+                            <small style="color: #6c757d;">(<%= s.teamName %>)</small>
+                        </td>
+                        <td><%= s.hands[0] %></td>
+                        <td><%= s.hands[1] %></td>
+                        <td><%= s.hands[2] %></td>
+                        <td><%= s.hands[3] %></td>
+                        <td><%= s.hands[4] %></td>
+                        <td><%= s.hands[5] %></td>
+                        <td><%= s.hands[6] %></td>
+                        <td><strong><%= s.total %></strong></td>
+                        <td><%= s.bolters %></td>
                         <td><%= s.floppers %></td>
                         <td><%= s.squares %></td>
                         <td><%= s.chances %></td>
-                            </strong><br><small>(<%= s.teamName %>)</small>
-                        </td>
-                        <td>
-                            <%= s.hands[0] %>
-                        </td>
-                        <td>
-                            <%= s.hands[1] %>
-                        </td>
-                        <td>
-                            <%= s.hands[2] %>
-                        </td>
-                        <td>
-                            <%= s.hands[3] %>
-                        </td>
-                        <td>
-                            <%= s.hands[4] %>
-                        </td>
-                        <td>
-                            <%= s.hands[5] %>
-                        </td>
-                        <td>
-                            <%= s.hands[6] %>
-                        </td>
-                        <td>
-                            <strong>
-                                <%= s.total %>
-                            </strong>
-                        </td>
                     </tr>
-                    <% } %>
+                <% } %>
             </tbody>
         </table>
-        <% } else { %>
-            <p>No scores have been registered yet.</p>
-            <% } %>
+    <% } else { %>
+        <p>No scores have been registered yet.</p>
+    <% } %>
 </div>
 <br><br>
 <a href="/fixtures" style="text-decoration: none; font-weight: bold; color: #007bff;">&larr; Back to Fixtures</a>

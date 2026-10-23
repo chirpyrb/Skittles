@@ -1,1 +1,73 @@
-Middle
+<div class="page-heading">
+    <div>
+        <h2>Weymouth &amp; Portland Skittles League</h2>
+        <p class="muted">Welcome to the official league management portal</p>
+    </div>
+    <div>
+        <a href="/tables" class="button">View All League Tables</a>
+    </div>
+</div>
+
+<h3>League Standings Overview</h3>
+
+<% if (!tables || tables.length === 0) { %>
+    <p>No league tables are currently active.</p>
+<% } else { %>
+    <% tables.forEach(table => { %>
+        <section class="league-table-section">
+            <h4 class="table-division-heading"><%= table.competitionName %></h4>
+            <% if (!table.standings || table.standings.length === 0) { %>
+                <p class="muted">No teams in this division.</p>
+            <% } else { %>
+                <div class="table-responsive">
+                    <table class="standings-table">
+                        <thead>
+                            <tr>
+                                <th class="col-pos">Pos</th>
+                                <th class="col-team">Team</th>
+                                <th class="col-num">P</th>
+                                <th class="col-num">W</th>
+                                <th class="col-num">D</th>
+                                <th class="col-num">L</th>
+                                <th class="col-num">PF</th>
+                                <th class="col-num">PA</th>
+                                <th class="col-num">PD</th>
+                                <th class="col-pts">Pts</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% 
+                                const totalTeams = table.standings.length;
+                                table.standings.forEach(row => { 
+                                    let zoneClass = '';
+                                    if (totalTeams >= 4) {
+                                        if (row.rank <= 2) zoneClass = 'promotion-zone';
+                                        else if (row.rank > totalTeams - 2) zoneClass = 'relegation-zone';
+                                    }
+                            %>
+                                <tr class="<%= zoneClass %>">
+                                    <td class="col-pos"><span class="rank-badge"><%= row.rank %></span></td>
+                                    <td class="col-team">
+                                        <a href="/teams?teamName=<%= encodeURIComponent(row.teamName) %>">
+                                            <strong><%= row.teamName %></strong>
+                                        </a>
+                                    </td>
+                                    <td class="col-num"><%= row.played %></td>
+                                    <td class="col-num"><%= row.won %></td>
+                                    <td class="col-num"><%= row.drawn %></td>
+                                    <td class="col-num"><%= row.lost %></td>
+                                    <td class="col-num"><%= row.pinsFor %></td>
+                                    <td class="col-num"><%= row.pinsAgainst %></td>
+                                    <td class="col-num <%= row.pinDiff > 0 ? 'diff-positive' : (row.pinDiff < 0 ? 'diff-negative' : '') %>">
+                                        <%= row.pinDiff > 0 ? '+' + row.pinDiff : row.pinDiff %>
+                                    </td>
+                                    <td class="col-pts"><strong><%= row.points %></strong></td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+            <% } %>
+        </section>
+    <% }) %>
+<% } %>
