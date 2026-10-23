@@ -336,3 +336,93 @@
     min-height: 0;
     accent-color: var(--primary-color);
 }
+
+.match-scorecards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+    align-items: start;
+}
+
+.team-scorecard {
+    min-width: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-card);
+    box-shadow: var(--shadow-sm);
+}
+
+.team-scorecard-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+    padding: 12px 16px;
+    color: var(--text-dark);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.team-scorecard-side {
+    color: var(--text-muted);
+    font-size: 0.8em;
+    font-weight: 600;
+}
+
+.team-scorecard-scroll {
+    overflow-x: auto;
+}
+
+.match-scorecard-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.match-scorecard-table th,
+.match-scorecard-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.match-scorecard-table thead th {
+    color: var(--text-muted);
+    background: #f8fafc;
+    font-size: 0.8em;
+}
+
+.match-scorecard-table tbody th {
+    text-align: left;
+    font-weight: 600;
+}
+
+.match-scorecard-table .scorecard-player-total {
+    font-weight: 700;
+    background: #f8fafc;
+}
+
+.match-scorecard-table tfoot th,
+.match-scorecard-table tfoot td {
+    font-weight: 700;
+    background: #eef2f5;
+    border-bottom: 0;
+}
+
+.match-scorecard-table .scorecard-team-total {
+    color: #155724;
+    background: #d4edda;
+    font-size: 1.05em;
+}
+
+.match-scorecard-table .scorecard-empty {
+    padding: 18px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+@media (max-width: 760px) {
+    .match-scorecards {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

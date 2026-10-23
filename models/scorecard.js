@@ -33,7 +33,21 @@ async function saveFinalScores(fixtureId, teamId, userId, playerScores) {
 // Return all saved scorecard rows for a fixture.
 async function getScorecardsForFixture(fixtureId) {
     await initTable()
-    return await SQ3.fetchAll(SQ3.db, `SELECT * FROM Scorecards WHERE fixtureId = ?`, [fixtureId])
+    return await SQ3.fetchAll(SQ3.db, `
+        SELECT Scorecards.teamId AS Team,
+            Scorecards.playerIndex AS Position,
+            Scorecards.handNumber AS Hand,
+            Scorecards.score AS Score,
+            Scorecards.bolters AS Bolters,
+            Scorecards.isFlopper,
+            Scorecards.isSquare,
+            Scorecards.isChance,
+            Players.alias AS playerName,
+            Teams.teamName
+        FROM Scorecards
+        LEFT JOIN Players ON Players.id = Scorecards.playerId
+        LEFT JOIN Teams ON Teams.id = Scorecards.teamId
+        WHERE Scorecards.fixtureId = ?`, [fixtureId])
 }
 
 module.exports = {

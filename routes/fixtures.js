@@ -55,8 +55,17 @@ router.get('/scorecard', requireRegisteredUser, async (req, res) => {
         const gameStatus = await fixture.getFixtureStatus(req.query.gameid)
         const gameInfo = await fixture.getFixtureInfo(req.query.gameid)
 
-        // Fetch provisional/saved scores across all hands and users for this game
-        const allScores = await fixture.getAllScoresForFixture(req.query.gameid)
+        // Prefer submitted scorecard entries, retaining temporary entries for in-progress teams.
+        const temporaryScores = await fixture.getAllScoresForFixture(req.query.gameid)
+        const submittedScores = await scorecard.getScorecardsForFixture(req.query.gameid)
+        const scoresByEntry = new Map()
+        for (const entry of (temporaryScores || [])) {
+            scoresByEntry.set(`${entry.Team}_${entry.Position}_${entry.Hand}`, entry)
+        }
+        for (const entry of (submittedScores || [])) {
+            scoresByEntry.set(`${entry.Team}_${entry.Position}_${entry.Hand}`, entry)
+        }
+        const allScores = Array.from(scoresByEntry.values())
 
         const playerScores = {};
         for (const s of (allScores || [])) {

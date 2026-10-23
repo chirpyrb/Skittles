@@ -88,48 +88,63 @@
 
 <div>
     <% if (typeof scores !== 'undefined' && scores && scores.length > 0) { %>
-        <h3>Provisional/Live Scores</h3>
-        <table border="1" cellpadding="6" cellspacing="0" style="width: 100%; border-collapse: collapse; text-align: center;">
-            <thead>
-                <tr style="background-color: #f2f2f2;">
-                    <th style="text-align: left; padding: 8px;">Player</th>
-                    <th>Hand 1</th>
-                    <th>Hand 2</th>
-                    <th>Hand 3</th>
-                    <th>Hand 4</th>
-                    <th>Hand 5</th>
-                    <th>Hand 6</th>
-                    <th>Hand 7</th>
-                    <th>Total</th>
-                    <th>Bolters</th>
-                    <th>Floppers</th>
-                    <th>Squares</th>
-                    <th>Chances</th>
-                </tr>
-            </thead>
-            <tbody>
-                <% for (let s of scores) { %>
-                    <tr>
-                        <td style="text-align: left; padding: 8px;">
-                            <strong><%= s.playerName %></strong><br>
-                            <small style="color: #6c757d;">(<%= s.teamName %>)</small>
-                        </td>
-                        <td><%= s.hands[0] %></td>
-                        <td><%= s.hands[1] %></td>
-                        <td><%= s.hands[2] %></td>
-                        <td><%= s.hands[3] %></td>
-                        <td><%= s.hands[4] %></td>
-                        <td><%= s.hands[5] %></td>
-                        <td><%= s.hands[6] %></td>
-                        <td><strong><%= s.total %></strong></td>
-                        <td><%= s.bolters %></td>
-                        <td><%= s.floppers %></td>
-                        <td><%= s.squares %></td>
-                        <td><%= s.chances %></td>
-                    </tr>
-                <% } %>
-            </tbody>
-        </table>
+        <h3>Provisional/Live Scorecard</h3>
+        <div class="match-scorecards">
+            <% const scorecardTeams = [
+                { name: gameInfo.homeTeam, side: 'Home', players: scores.filter(score => score.teamName === gameInfo.homeTeam) },
+                { name: gameInfo.awayTeam, side: 'Away', players: scores.filter(score => score.teamName === gameInfo.awayTeam) }
+            ]; %>
+            <% for (const scorecardTeam of scorecardTeams) { %>
+                <% const handTotals = Array(7).fill(0); %>
+                <% let teamTotal = 0; %>
+                <% scorecardTeam.players.forEach(score => { %>
+                    <% score.hands.forEach((handScore, handIndex) => { handTotals[handIndex] += handScore; }); %>
+                    <% teamTotal += score.total; %>
+                <% }); %>
+                <section class="team-scorecard">
+                    <h4 class="team-scorecard-heading">
+                        <span><%= scorecardTeam.name %></span>
+                        <span class="team-scorecard-side"><%= scorecardTeam.side %></span>
+                    </h4>
+                    <div class="team-scorecard-scroll">
+                        <table class="match-scorecard-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Player</th>
+                                    <% for (let handIndex = 1; handIndex <= 7; handIndex++) { %>
+                                        <th scope="col">H<%= handIndex %></th>
+                                    <% } %>
+                                    <th scope="col">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% for (const score of scorecardTeam.players) { %>
+                                    <tr>
+                                        <th scope="row"><%= score.playerName %></th>
+                                        <% for (const handScore of score.hands) { %>
+                                            <td><%= handScore %></td>
+                                        <% } %>
+                                        <td class="scorecard-player-total"><%= score.total %></td>
+                                    </tr>
+                                <% } %>
+                                <% if (scorecardTeam.players.length === 0) { %>
+                                    <tr><td class="scorecard-empty" colspan="9">No scores recorded yet.</td></tr>
+                                <% } %>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <th scope="row">Hand totals</th>
+                                    <% for (const handTotal of handTotals) { %>
+                                        <td><%= handTotal %></td>
+                                    <% } %>
+                                    <td class="scorecard-team-total"><%= teamTotal %></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </section>
+            <% } %>
+        </div>
     <% } else { %>
         <p>No scores have been registered yet.</p>
     <% } %>
