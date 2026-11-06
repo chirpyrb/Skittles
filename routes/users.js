@@ -41,7 +41,7 @@ router.post('/login', async (req, res) => {
     const { userName, password } = req.body;
 
     // Check the username is valid
-    if (auth.usernameExists(userName)) {
+    if (await auth.usernameExists(userName)) {
         const user = await auth.authenticateUser(userName, password)
         console.log(user)
         if (user != null) {
@@ -70,6 +70,57 @@ router.post('/login', async (req, res) => {
     }
 
 })
+router.get('/forgot-password', (req, res) => {
+    res.render('users/forgotPassword')
+})
+
+router.post('/forgot-password', (req, res) => {
+    res.render('users/forgotPassword', {
+        submitted: true,
+        message: 'Password resets are handled by a League Secretary or Developer. Please contact them with your username.'
+    })
+})
+
+router.post('/profile/password', async (req, res) => {
+    if (!req.session.user) return res.redirect('/users/login')
+
+    const { currentPassword, newPassword, confirmPassword } = req.body
+    if (!newPassword || newPassword.length < 8) {
+        return res.redirect('/users/profile?passwordError=Password+must+be+at+least+8+characters')
+    }
+    if (newPassword !== confirmPassword) {
+        return res.redirect('/users/profile?passwordError=New+passwords+do+not+match')
+    }
+
+    const changed = await auth.changePassword(req.session.user.userName, currentPassword, newPassword)
+    if (!changed) {
+        return res.redirect('/users/profile?passwordError=Current+password+is+incorrect')
+    }
+
+    res.redirect('/users/profile?passwordChanged=1')
+})
+
+router.post('/admin/reset-password', async (req, res) => {
+    if (!req.session.user || !['dev', 'LeagueSecretary'].includes(req.session.user.access)) {
+        return res.status(403).send('Password reset is restricted to League Secretaries and Developers.')
+    }
+
+    const { userName, newPassword, confirmPassword } = req.body
+    if (!userName || !newPassword || newPassword.length < 8) {
+        return res.redirect('/users/profile?passwordError=Choose+a+user+and+a+password+of+at+least+8+characters')
+    }
+    if (newPassword !== confirmPassword) {
+        return res.redirect('/users/profile?passwordError=Reset+passwords+do+not+match')
+    }
+
+    const reset = await auth.resetPassword(userName, newPassword)
+    if (!reset) {
+        return res.redirect('/users/profile?passwordError=Password+could+not+be+reset')
+    }
+
+    res.redirect('/users/profile?passwordChanged=1')
+})
+
 router.get('/profile', async (req, res) => {
     if (!req.session.user) return res.redirect('/users/login')
 
@@ -87,7 +138,20 @@ router.get('/profile', async (req, res) => {
         team = await teamModel.getTeamById(linkedPlayer.team)
     }
 
-    res.render('users/profile', { players: allPlayers, user: req.session.user, linkedPlayer: linkedPlayer, team: team })
+    let resetUsers = []
+    if (['dev', 'LeagueSecretary'].includes(req.session.user.access)) {
+        resetUsers = await SQ3.fetchAll(SQ3.db, 'SELECT id, userName, access FROM Users ORDER BY userName')
+    }
+
+    res.render('users/profile', {
+        players: allPlayers,
+        user: req.session.user,
+        linkedPlayer: linkedPlayer,
+        team: team,
+        resetUsers,
+        passwordChanged: req.query.passwordChanged === '1',
+        passwordError: req.query.passwordError || null
+    })
 })
 
 router.post('/link', async (req, res) => {

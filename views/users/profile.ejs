@@ -6,6 +6,43 @@
     <p><strong>Access Level:</strong> <%= user.access %></p>
 </div>
 
+<hr>
+<h3>Change Password</h3>
+<% if (passwordChanged) { %>
+    <p style="color: green;">Password changed successfully.</p>
+<% } %>
+<% if (passwordError) { %>
+    <p style="color: red;"><%= passwordError %></p>
+<% } %>
+<form action="/users/profile/password" method="POST">
+    <label for="currentPassword">Current Password</label>
+    <input type="password" id="currentPassword" name="currentPassword" required autocomplete="current-password">
+    <label for="newPassword">New Password</label>
+    <input type="password" id="newPassword" name="newPassword" minlength="8" required autocomplete="new-password">
+    <label for="confirmPassword">Confirm New Password</label>
+    <input type="password" id="confirmPassword" name="confirmPassword" minlength="8" required autocomplete="new-password">
+    <button class="btn" type="submit">Change Password</button>
+</form>
+
+<% if (resetUsers && resetUsers.length > 0 && ['dev', 'LeagueSecretary'].includes(user.access)) { %>
+    <hr>
+    <h3>Reset a User Password</h3>
+    <p>Administrative reset for a user who cannot sign in.</p>
+    <form action="/users/admin/reset-password" method="POST">
+        <label for="resetUserName">User</label>
+        <select id="resetUserName" name="userName" required>
+            <% resetUsers.forEach(resetUser => { %>
+                <option value="<%= resetUser.userName %>"><%= resetUser.userName %> (<%= resetUser.access %>)</option>
+            <% }) %>
+        </select>
+        <label for="resetPassword">New Password</label>
+        <input type="password" id="resetPassword" name="newPassword" minlength="8" required autocomplete="new-password">
+        <label for="resetConfirmPassword">Confirm New Password</label>
+        <input type="password" id="resetConfirmPassword" name="confirmPassword" minlength="8" required autocomplete="new-password">
+        <button class="btn" type="submit">Reset Password</button>
+    </form>
+<% } %>
+
 <div class="linked-player-details">
     <h3>Linked Player Details</h3>
     <% if (linkedPlayer) { %>

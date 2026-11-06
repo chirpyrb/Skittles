@@ -49,6 +49,32 @@ async function authenticateUser(username, password) {
 }
 
 // Check whether a user has the requested access role.
+// Change a password after verifying the user's current password.
+async function changePassword(username, currentPassword, newPassword) {
+    const user = await usernameExists(username)
+    if (!user) return false
+
+    const matches = await bcrypt.compare(currentPassword, user.password)
+    if (!matches) return false
+
+    return await resetPassword(username, newPassword)
+}
+
+// Set a new password. This is intended for authenticated administrative reset flows.
+async function resetPassword(username, newPassword) {
+    const user = await usernameExists(username)
+    if (!user) return false
+
+    try {
+        const hash = await bcrypt.hash(newPassword, 10)
+        await SQ3.execute(SQ3.db, 'UPDATE Users SET password = ? WHERE userName = ?', [hash, username])
+        return true
+    } catch (err) {
+        console.error('Unable to reset password:', err)
+        return false
+    }
+}
+
 async function userPermissions(username, role) {
     // Check that a username and role were provided.
     if (username == null || role == null) {
@@ -93,6 +119,8 @@ module.exports = {
     usernameExists,
     addUser,
     authenticateUser,
+    changePassword,
+    resetPassword,
     userPermissions,
     linkPlayerToUser,
     getPlayerForUser
