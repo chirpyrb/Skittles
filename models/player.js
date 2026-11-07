@@ -36,12 +36,18 @@ async function getAllPlayers() {
 }
 
 // Calculate player scoring totals and per-game averages for selected competitions.
-async function getPlayerStatsForTeamSeason(teamId, competitionIds) {
+async function getPlayerStatsForTeamSeason(teamId, seasonStartYear, competitionIds) {
     const scorecard = require('./scorecard')
     await scorecard.initTable()
-    if (!competitionIds || competitionIds.length === 0) return []
+    if (!seasonStartYear && (!competitionIds || competitionIds.length === 0)) return []
 
-    const placeholders = competitionIds.map(() => '?').join(',')
+    const ids = (competitionIds || []).map(id => Number(id)).filter(Number.isInteger)
+    const competitionPlaceholders = ids.length ? ids.map(() => '?').join(',') : null
+    const seasonId = Number(seasonStartYear)
+    const hasSeasonYear = Number.isInteger(seasonId) && seasonId > 0
+    if (!hasSeasonYear && !competitionPlaceholders) return []
+
+    const competitionFilter = competitionPlaceholders ? `F.competition IN (${competitionPlaceholders})` : '0'
     const rows = await SQ3.fetchAll(SQ3.db, `
         SELECT P.id, P.firstName, P.secondName, P.alias,
             COUNT(DISTINCT S.fixtureId) AS gamesPlayed,
@@ -53,14 +59,22 @@ async function getPlayerStatsForTeamSeason(teamId, competitionIds) {
         FROM Players P
         LEFT JOIN Scorecards S ON S.playerId = P.id
             AND S.fixtureId IN (
-                SELECT id FROM Fixtures
-                WHERE competition IN (${placeholders})
-                    AND status IN ('Provisional', 'Confirmed', 'Completed')
+                SELECT F.id FROM Fixtures F
+                LEFT JOIN Seasons SeasonLink ON SeasonLink.id = F.seasonId
+                WHERE F.status IN ('Provisional', 'Confirmed', 'Completed')
+                    AND (
+                        ${hasSeasonYear ? 'SeasonLink.seasonStartYear = ?' : '0'}
+                        OR ${competitionFilter}
+                    )
             )
         WHERE P.team = ? AND P.approved = 1
         GROUP BY P.id, P.firstName, P.secondName, P.alias
         ORDER BY P.secondName ASC, P.firstName ASC`,
-        [...competitionIds, teamId])
+        [
+            ...(hasSeasonYear ? [seasonId] : []),
+            ...ids,
+            teamId
+        ])
 
     return rows.map(row => {
         const gamesPlayed = Number(row.gamesPlayed) || 0

@@ -1,5 +1,8 @@
 const express = require('express')
 const router = express.Router()
+const multer = require('multer')
+const fs = require('fs')
+const path = require('path')
 
 const team = require('../models/team')
 const player = require('../models/player')
@@ -8,6 +11,25 @@ const division = require('../models/division')
 const bulkImport = require('../models/bulkImport')
 const competition = require('../models/competition')
 const league = require('../models/league')
+
+const teamLogoDirectory = path.join(__dirname, '..', 'public', 'images', 'team-logos')
+fs.mkdirSync(teamLogoDirectory, { recursive: true })
+const teamLogoUpload = multer({
+    storage: multer.diskStorage({
+        destination: teamLogoDirectory,
+        filename: (req, file, callback) => {
+            const extension = path.extname(file.originalname || '').toLowerCase()
+            callback(null, `team-${Date.now()}-${Math.round(Math.random() * 1e9)}${extension}`)
+        }
+    }),
+    limits: { fileSize: 2 * 1024 * 1024 },
+    fileFilter: (req, file, callback) => {
+        if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(file.mimetype)) {
+            return callback(new Error('Team logos must be PNG, JPG, WEBP, or GIF images.'))
+        }
+        callback(null, true)
+    }
+})
 
 function requireRegisteredUser(req, res, next) {
     if (!req.session.user) {
@@ -45,7 +67,9 @@ router.get('/', async (req, res) => {
         const competitionIds = competitions
             .filter(currentCompetition => currentCompetition.seasonStartYear === currentSeason.seasonStartYear)
             .map(currentCompetition => currentCompetition.id)
-        const playerStats = qTeam ? await player.getPlayerStatsForTeamSeason(qTeam.id, competitionIds) : []
+        const playerStats = qTeam
+            ? await player.getPlayerStatsForTeamSeason(qTeam.id, currentSeason.seasonStartYear, competitionIds)
+            : []
         res.render('teams/teamPage', {
             team: qTeam,
             playerList: playerList,
@@ -82,24 +106,28 @@ router.get('/edit/:id', requireTeamManagementAccess, async (req, res) => {
     res.render('teams/edit', { team: teamInfo, divList: divList, alleyList: alleyList, leagues: leagues })
 })
 
-router.post('/edit/:id', requireTeamManagementAccess, async (req, res) => {
-    const teamName = String(req.body.teamName || '').trim()
-    const homeAlley = Number(req.body.homeAlley)
-    const divisionId = req.body.division ? Number(req.body.division) : null
-    const leagueId = req.body.leagueId ? Number(req.body.leagueId) : null
-    const homeNight = Number(req.body.homeNight)
+router.post('/edit/:id', requireTeamManagementAccess, (req, res, next) => {
+    teamLogoUpload.single('logo')(req, res, async error => {
+        if (error) return res.status(400).send(error.message)
+        const teamName = String(req.body.teamName || '').trim()
+        const homeAlley = Number(req.body.homeAlley)
+        const divisionId = req.body.division ? Number(req.body.division) : null
+        const leagueId = req.body.leagueId ? Number(req.body.leagueId) : null
+        const homeNight = Number(req.body.homeNight)
 
-    if (!teamName || !Number.isInteger(homeAlley) || !Number.isInteger(homeNight) || homeNight < 1 || homeNight > 7) {
-        return res.status(400).send('Team name, alley, and a home night from 1 to 7 are required.')
-    }
+        if (!teamName || !Number.isInteger(homeAlley) || !Number.isInteger(homeNight) || homeNight < 1 || homeNight > 7) {
+            return res.status(400).send('Team name, alley, and a home night from 1 to 7 are required.')
+        }
 
-    try {
-        await team.updateTeam(req.params.id, teamName, homeAlley, divisionId, homeNight, leagueId)
-        res.redirect(`/teams?teamName=${encodeURIComponent(teamName)}`)
-    } catch (error) {
-        console.error(error)
-        res.status(400).send('Unable to update team details.')
-    }
+        try {
+            const logoPath = req.file ? `/images/team-logos/${req.file.filename}` : undefined
+            await team.updateTeam(req.params.id, teamName, homeAlley, divisionId, homeNight, leagueId, logoPath)
+            res.redirect(`/teams?teamName=${encodeURIComponent(teamName)}`)
+        } catch (error) {
+            console.error(error)
+            res.status(400).send('Unable to update team details.')
+        }
+    })
 })
 
 router.post('/delete/:id', requireTeamManagementAccess, async (req, res) => {
@@ -137,22 +165,26 @@ router.post('/bulk-upload', bulkImport.requireBulkUploadAccess, (req, res, next)
 })
 
 // Create team.
-router.post('/', async (req, res) => {
-    const newTeamName = String(req.body.newTeamName || '').trim()
-    const newTeamAlley = req.body.newTeamAlley ? Number(req.body.newTeamAlley) : null
-    const leagueId = req.body.leagueId ? Number(req.body.leagueId) : null
+router.post('/', (req, res, next) => {
+    teamLogoUpload.single('logo')(req, res, async error => {
+        if (error) return res.status(400).send(error.message)
+        const newTeamName = String(req.body.newTeamName || '').trim()
+        const newTeamAlley = req.body.newTeamAlley ? Number(req.body.newTeamAlley) : null
+        const leagueId = req.body.leagueId ? Number(req.body.leagueId) : null
 
-    if (!newTeamName || !leagueId) {
-        return res.status(400).send('Team name and league are required.')
-    }
+        if (!newTeamName || !leagueId) {
+            return res.status(400).send('Team name and league are required.')
+        }
 
-    try {
-        await team.createTeam(newTeamName, newTeamAlley, leagueId)
-        res.redirect('/teams')
-    } catch (err) {
-        console.error(err)
-        res.status(400).send(err.message || 'Unable to create team.')
-    }
+        try {
+            const logoPath = req.file ? `/images/team-logos/${req.file.filename}` : null
+            await team.createTeam(newTeamName, newTeamAlley, leagueId, logoPath)
+            res.redirect('/teams')
+        } catch (err) {
+            console.error(err)
+            res.status(400).send(err.message || 'Unable to create team.')
+        }
+    })
 })
 
 module.exports = router

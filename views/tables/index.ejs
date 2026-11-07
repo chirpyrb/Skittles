@@ -77,6 +77,9 @@
                                     </td>
                                     <td class="col-team">
                                         <a href="/teams?teamName=<%= encodeURIComponent(row.teamName) %>">
+                                            <% if (row.logoPath) { %>
+                                                <img src="<%= row.logoPath %>" alt="<%= row.teamName %> logo" style="width: 36px; height: 36px; object-fit: contain; vertical-align: middle; margin-right: 8px;">
+                                            <% } %>
                                             <strong><%= row.teamName %></strong>
                                         </a>
                                     </td>

@@ -119,6 +119,15 @@
         color: inherit;
         display: block;
     }
+
+    .team-logo {
+        width: 36px;
+        height: 36px;
+        object-fit: contain;
+        vertical-align: middle;
+        margin: 0 6px;
+        border-radius: 4px;
+    }
 </style>
 
 <h2>Fixtures</h2>
@@ -127,6 +136,18 @@
     <a href="/fixtures/bulk-upload" role="button">Upload fixtures from CSV</a>
 <% } %>
 <br>
+
+<form method="get" action="/fixtures" style="margin: 15px 0;">
+    <label for="alleyFilter"><strong>Filter by alley:</strong></label>
+    <select id="alleyFilter" name="alleyId" onchange="this.form.submit()" style="margin-left: 8px; padding: 6px;">
+        <option value="">All alleys</option>
+        <% (alleys || []).forEach(alley => { %>
+            <option value="<%= alley.id %>" <%= selectedAlleyId && String(selectedAlleyId) === String(alley.id) ? 'selected' : '' %>>
+                <%= alley.AlleyName || alley.name %>
+            </option>
+        <% }) %>
+    </select>
+</form>
 
 <div class="fixture-grouping-container">
     <% const compKeys = Object.keys(groupedFixtures || {}).sort(); %>
@@ -181,6 +202,7 @@
                                 <% month.days[dayKey].fixtures.forEach(fixture => { %>
                                     <div class="fixture-row <%= fixture.status === 'Bye' ? 'bye-fixture' : '' %>"
                                          data-fixture-id="<%= fixture.id %>"
+                                         data-alley-id="<%= fixture.alleyId || '' %>"
                                          data-live-score="<%= ['Awaiting teams', 'Live', 'In Progress', 'Provisional'].includes(fixture.status) ? 'true' : 'false' %>">
                                         <% if (fixture.status === 'Bye') { %>
                                             <div class="bye-fixture-content">
@@ -189,8 +211,14 @@
                                             </div>
                                         <% } else { %>
                                             <a href="/fixtures/scorecard?gameid=<%= fixture.id %>">
+                                                <div style="text-align: center; color: #64748b; font-size: 0.82em; margin-bottom: 4px;">
+                                                    <%= fixture.alleyName || 'Unassigned alley' %>
+                                                </div>
                                                 <span style="display: inline-block; width: 40%; text-align: right; font-weight: bold;">
                                                     <%= fixture.homeTeam %>
+                                                    <% if (fixture.homeTeamLogo) { %>
+                                                        <img class="team-logo" src="<%= fixture.homeTeamLogo %>" alt="<%= fixture.homeTeam %> logo">
+                                                    <% } %>
                                                     <span class="fixture-score home-score" style="margin-left: 5px; padding: 2px 6px; background-color: #333; color: white; border-radius: 3px; font-size: 0.9em;">
                                                         <%= fixture.homeScore != null ? fixture.homeScore : '-' %>
                                                     </span>
@@ -201,6 +229,9 @@
                                                         <%= fixture.awayScore != null ? fixture.awayScore : '-' %>
                                                     </span>
                                                     <%= fixture.awayTeam %>
+                                                    <% if (fixture.awayTeamLogo) { %>
+                                                        <img class="team-logo" src="<%= fixture.awayTeamLogo %>" alt="<%= fixture.awayTeam %> logo">
+                                                    <% } %>
                                                 </span>
                                             </a>
                                         <% } %>

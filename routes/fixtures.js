@@ -7,6 +7,7 @@ const league = require('../models/league')
 const auth = require('../models/user')
 const player = require('../models/player.js')
 const scorecard = require('../models/scorecard.js')
+const alley = require('../models/alley.js')
 
 function requireRegisteredUser(req, res, next) {
     if (!req.session.user) {
@@ -16,16 +17,51 @@ function requireRegisteredUser(req, res, next) {
     next()
 }
 
+function isLeagueSecretary(user) {
+    return user && (user.access === 'LeagueSecretary' || user.access === 'dev')
+}
+
+function isCaptainForFixture(user, fixtureInfo) {
+    return !!fixtureInfo && !!user && (
+        fixtureInfo.homeCaptainId === user.id ||
+        fixtureInfo.awayCaptainId === user.id ||
+        user.access === 'TeamCaptain' && (String(user.Team) === String(fixtureInfo.homeTeamID) || String(user.Team) === String(fixtureInfo.awayTeamID))
+    )
+}
+
+function canManageScorecard(user, fixtureInfo) {
+    return isLeagueSecretary(user) || isCaptainForFixture(user, fixtureInfo)
+}
+
+function canManageTeam(user, fixtureInfo, teamId) {
+    if (isLeagueSecretary(user)) return true
+    if (!fixtureInfo || !user) return false
+    return String(teamId) === String(fixtureInfo.homeTeamID) && fixtureInfo.homeCaptainId === user.id ||
+        String(teamId) === String(fixtureInfo.awayTeamID) && fixtureInfo.awayCaptainId === user.id
+}
+
 // Get all fixtures.
 router.get('/', async (req, res) => {
     try {
         const currentSeason = await league.getCurrentSeason()
-        const fixtureList = (await fixture.getAllFixtures())
+        let fixtureList = (await fixture.getAllFixtures())
             .filter(currentFixture => !currentSeason || currentFixture.seasonId === currentSeason.id)
+        const alleys = await alley.getAlleys(null)
+        const selectedAlleyId = req.query.alleyId ? Number(req.query.alleyId) : null
+        if (selectedAlleyId) {
+            fixtureList = fixtureList.filter(currentFixture =>
+                Number(currentFixture.alleyId) === selectedAlleyId
+            )
+        }
 
         // Group fixtures by competition then month.
         const groupedFixtures = fixture.groupFixturesByCompetitionAndMonth(fixtureList)
-        res.render('fixtures/index', { user: req.session.user, groupedFixtures: groupedFixtures })
+        res.render('fixtures/index', {
+            user: req.session.user,
+            groupedFixtures: groupedFixtures,
+            alleys: alleys,
+            selectedAlleyId: selectedAlleyId
+        })
     } catch (err) {
         console.error(err)
         res.redirect('/')
@@ -76,6 +112,9 @@ router.get('/scorecard', requireRegisteredUser, async (req, res) => {
                     playerName: s.playerName || 'Empty/Unknown',
                     Position: s.Position,
                     hands: [0, 0, 0, 0, 0, 0, 0],
+                    handBolters: [0, 0, 0, 0, 0, 0, 0],
+                    handSquares: [false, false, false, false, false, false, false],
+                    handFloppers: [false, false, false, false, false, false, false],
                     total: 0,
                     bolters: 0,
                     floppers: 0,
@@ -87,6 +126,9 @@ router.get('/scorecard', requireRegisteredUser, async (req, res) => {
             // Hands should be 1-indexed up to 7, check boundary just in case
             if (s.Hand >= 1 && s.Hand <= 7) {
                 playerScores[key].hands[s.Hand - 1] = score;
+                playerScores[key].handBolters[s.Hand - 1] = parseInt(s.Bolters) || 0;
+                playerScores[key].handSquares[s.Hand - 1] = (parseInt(s.isSquare) || 0) > 0;
+                playerScores[key].handFloppers[s.Hand - 1] = (parseInt(s.isFlopper) || 0) > 0;
             }
             playerScores[key].total += score;
             playerScores[key].bolters += parseInt(s.Bolters) || 0;
@@ -273,6 +315,9 @@ router.get('/scorecard/new', async (req, res) => {
         res.redirect('/fixtures')
         return
     }
+    if (!canManageScorecard(req.session.user, fixtureInfo)) {
+        return res.status(403).send('Only captains or the league secretary can edit scorecards.')
+    }
 
     if (!req.session.user.gamesInProgress) {
         req.session.user.gamesInProgress = fixtureID
@@ -280,7 +325,34 @@ router.get('/scorecard/new', async (req, res) => {
     }
 
     const userid = req.session.user.id || 1
-    const savedScores = await fixture.getTempScoresForUser(fixtureID, userid)
+    let savedScores = await fixture.getTempScoresForUser(fixtureID, userid)
+    if (savedScores.length > 0) {
+        req.session.user.Team = savedScores[0].Team
+    } else if (isLeagueSecretary(req.session.user)) {
+        req.session.user.Team = req.session.user.Team &&
+            (String(req.session.user.Team) === String(fixtureInfo.homeTeamID) || String(req.session.user.Team) === String(fixtureInfo.awayTeamID))
+            ? req.session.user.Team : fixtureInfo.homeTeamID
+    } else if (!canManageTeam(req.session.user, fixtureInfo, req.session.user.Team)) {
+        req.session.user.Team = fixtureInfo.homeCaptainId === req.session.user.id
+            ? fixtureInfo.homeTeamID : fixtureInfo.awayTeamID
+    }
+
+    if (savedScores.length === 0 && req.session.user.Team) {
+        const submittedScores = await scorecard.getScorecardsForFixture(fixtureID)
+        savedScores = (submittedScores || [])
+            .filter(entry => String(entry.Team) === String(req.session.user.Team))
+            .map(entry => ({
+                Hand: entry.Hand,
+                Team: entry.Team,
+                Player: entry.Player,
+                Position: entry.Position,
+                Score: entry.Score,
+                Bolters: entry.Bolters,
+                isFlopper: entry.isFlopper,
+                isSquare: entry.isSquare,
+                isChance: entry.isChance
+            }))
+    }
     const resumeHand = savedScores.reduce((highestHand, savedScore) => {
         return Math.max(highestHand, parseInt(savedScore.Hand) || 0)
     }, 1)
@@ -333,6 +405,9 @@ router.get('/scorecard/new/team', async (req, res) => {
 
     const fixtureID = req.session.user.gamesInProgress
     const fixtureInfo = await fixture.getFixtureInfo(fixtureID)
+    if (!canManageScorecard(req.session.user, fixtureInfo)) {
+        return res.status(403).send('Only captains or the league secretary can edit scorecards.')
+    }
 
     let targetTeamId = null
     if (req.query.teamType === 'away') {
@@ -357,6 +432,11 @@ router.get('/scorecard/new/team', async (req, res) => {
     if (!targetTeamId && fixtureInfo) {
         targetTeamId = fixtureInfo.homeTeamID
     }
+    if (!canManageTeam(req.session.user, fixtureInfo, targetTeamId)) {
+        return res.status(403).send('You cannot manage the selected team.')
+    }
+
+    req.session.teamSheet = null
 
     req.session.user.Team = targetTeamId
     req.session.save()
@@ -373,13 +453,16 @@ router.get('/scorecard/new/team', async (req, res) => {
 })
 
 router.post('/scorecard/new/team', async (req, res) => {
+    if (!req.session.user) return res.redirect('/users/login')
+    const fixtureID = req.session.user.gamesInProgress
+    const fixtureInfo = await fixture.getFixtureInfo(fixtureID)
+    let targetTeamId = req.session.user.Team
+    if (!canManageTeam(req.session.user, fixtureInfo, targetTeamId)) {
+        return res.status(403).send('You cannot manage the selected team.')
+    }
     req.session.teamSheet = req.body.player
     req.session.save()
 
-    const fixtureID = req.session.user.gamesInProgress
-    const fixtureInfo = await fixture.getFixtureInfo(fixtureID)
-
-    let targetTeamId = req.session.user.Team
     if (!targetTeamId && fixtureInfo) {
         targetTeamId = fixtureInfo.homeTeamID
     }
@@ -398,7 +481,33 @@ router.post('/scorecard/new/team', async (req, res) => {
         return allPlayers.find(p => p.id == id) || { alias: 'Unknown' }
     })
 
-    const savedScores = await fixture.getTempScoresForUser(fixtureID, req.session.user.id || 1)
+    let savedScores = await fixture.getTempScoresForUser(fixtureID, req.session.user.id || 1)
+    savedScores = savedScores.filter(entry => String(entry.Team) === String(targetTeamId))
+    if (savedScores.length === 0) {
+        const submittedScores = await scorecard.getScorecardsForFixture(fixtureID)
+        savedScores = (submittedScores || [])
+            .filter(entry => String(entry.Team) === String(targetTeamId))
+            .map(entry => ({
+                Hand: entry.Hand,
+                Team: entry.Team,
+                Player: entry.Player,
+                Position: entry.Position,
+                Score: entry.Score,
+                Bolters: entry.Bolters,
+                isFlopper: entry.isFlopper,
+                isSquare: entry.isSquare,
+                isChance: entry.isChance
+            }))
+        if (savedScores.length > 0) {
+            req.session.teamSheet = Array(8).fill('null')
+            savedScores.forEach(savedScore => {
+                if (savedScore.Position >= 0 && savedScore.Position < 8 && savedScore.Player) {
+                    req.session.teamSheet[savedScore.Position] = String(savedScore.Player)
+                }
+            })
+            req.session.save()
+        }
+    }
     const resumeHand = savedScores.reduce((highestHand, savedScore) => {
         return Math.max(highestHand, parseInt(savedScore.Hand) || 0)
     }, 1)
@@ -427,6 +536,9 @@ router.post('/scorecard', async (req, res) => {
 
     try {
         const fixtureInfo = await fixture.getFixtureInfo(gameid)
+        if (!canManageTeam(req.session.user, fixtureInfo, teamid)) {
+            return res.status(403).send('You cannot enter scores for this team.')
+        }
         const playerScores = []
         let teamTotalScore = 0
 
@@ -472,7 +584,9 @@ router.post('/scorecard', async (req, res) => {
             if (homeScore === null || homeScore === undefined) homeScore = teamTotalScore
         }
 
-        const newStatus = (homeScore !== null && awayScore !== null) ? 'Provisional' : 'In Progress'
+        const newStatus = fixtureInfo.status === 'Confirmed'
+            ? 'Confirmed'
+            : ((homeScore !== null && awayScore !== null) ? 'Provisional' : 'In Progress')
         await fixture.updateFixtureScore(gameid, homeScore, awayScore, newStatus)
 
         req.session.user.gamesInProgress = null
@@ -514,7 +628,7 @@ router.post('/scorecard/confirm', async (req, res) => {
     }
 
     try {
-        await fixture.confirmFixture(req.body.gameid)
+        await fixture.finaliseFixture(req.body.gameid)
         res.redirect(`/fixtures/scorecard?gameid=${encodeURIComponent(req.body.gameid)}`)
     } catch (error) {
         console.error(error)
@@ -538,6 +652,10 @@ router.post('/scorecard/entry', async (req, res) => {
         const gameid = req.session.user.gamesInProgress;
         const userid = req.session.user.id || req.user.id;
         const teamid = req.session.user.Team;
+        const fixtureInfo = await fixture.getFixtureInfo(gameid)
+        if (!canManageTeam(req.session.user, fixtureInfo, teamid)) {
+            return res.status(403).send("Unauthorized");
+        }
         const { handNumber, playerIndex, score, bolters, isFlopper, isSquare, isChance } = req.body;
 
         let playerId = null;

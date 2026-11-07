@@ -293,26 +293,56 @@
                 }
             });
 
-            if (handScoreTotalLabel) handScoreTotalLabel.textContent = scoreTotal;
+            if (handScoreTotalLabel) {
+                handScoreTotalLabel.textContent = '';
+                handScoreTotalLabel.appendChild(document.createTextNode(scoreTotal));
+                if (bolterTotal > 0) {
+                    const superscript = document.createElement('sup');
+                    superscript.textContent = bolterTotal;
+                    handScoreTotalLabel.appendChild(superscript);
+                }
+            }
             if (handBolterTotalLabel) handBolterTotalLabel.textContent = bolterTotal;
         }
 
         function updateAllHandTotals() {
             let grandTotal = 0;
+            let grandBolterTotal = 0;
 
             for (let handNumber = 1; handNumber <= 7; handNumber++) {
                 let handTotal = 0;
+                let handBolterTotal = 0;
                 form.querySelectorAll(`.input.score.hand-${handNumber}`).forEach(input => {
                     handTotal += parseInt(input.value) || 0;
                 });
+                form.querySelectorAll(`.input.bolters.hand-${handNumber}`).forEach(input => {
+                    handBolterTotal += parseInt(input.value) || 0;
+                });
 
                 const totalLabel = document.querySelector(`[data-hand-total="${handNumber}"]`);
-                if (totalLabel) totalLabel.textContent = handTotal;
+                if (totalLabel) {
+                    totalLabel.textContent = '';
+                    totalLabel.appendChild(document.createTextNode(handTotal));
+                    if (handBolterTotal > 0) {
+                        const superscript = document.createElement('sup');
+                        superscript.textContent = handBolterTotal;
+                        totalLabel.appendChild(superscript);
+                    }
+                }
                 grandTotal += handTotal;
+                grandBolterTotal += handBolterTotal;
             }
 
             const grandTotalLabel = document.querySelector('[data-grand-total]');
-            if (grandTotalLabel) grandTotalLabel.textContent = grandTotal;
+            if (grandTotalLabel) {
+                grandTotalLabel.textContent = '';
+                grandTotalLabel.appendChild(document.createTextNode(grandTotal));
+                if (grandBolterTotal > 0) {
+                    const superscript = document.createElement('sup');
+                    superscript.textContent = grandBolterTotal;
+                    grandTotalLabel.appendChild(superscript);
+                }
+            }
         }
 
         function populateSummaryTable() {
@@ -322,6 +352,7 @@
             let grandTotalSquares = 0;
             let grandTotalChances = 0;
             const handTotals = [0, 0, 0, 0, 0, 0, 0, 0];
+            const handBolterTotals = [0, 0, 0, 0, 0, 0, 0, 0];
 
             for (let playerIndex = 0; playerIndex < 8; playerIndex++) {
                 let playerTotalScore = 0;
@@ -344,7 +375,12 @@
                     const cVal = chanceInput && chanceInput.checked ? 1 : 0;
 
                     const cell = document.getElementById(`summary-score-${handNumber}-${playerIndex}`);
-                    if (cell) cell.textContent = sVal;
+                    if (cell) {
+                        let formattedScore = String(sVal) + '`'.repeat(bVal);
+                        if (qVal) formattedScore = `[${formattedScore}]`;
+                        if (fVal) formattedScore = `{${formattedScore}}`;
+                        cell.textContent = formattedScore;
+                    }
 
                     playerTotalScore += sVal;
                     playerTotalBolters += bVal;
@@ -352,10 +388,19 @@
                     playerTotalSquares += qVal;
                     playerTotalChances += cVal;
                     handTotals[handNumber] += sVal;
+                    handBolterTotals[handNumber] += bVal;
                 }
 
                 const playerTotalCell = document.getElementById(`summary-player-total-${playerIndex}`);
-                if (playerTotalCell) playerTotalCell.textContent = playerTotalScore;
+                if (playerTotalCell) {
+                    playerTotalCell.textContent = '';
+                    playerTotalCell.appendChild(document.createTextNode(playerTotalScore));
+                    if (playerTotalBolters > 0) {
+                        const superscript = document.createElement('sup');
+                        superscript.textContent = playerTotalBolters;
+                        playerTotalCell.appendChild(superscript);
+                    }
+                }
 
                 const playerBoltersCell = document.getElementById(`summary-player-bolters-${playerIndex}`);
                 if (playerBoltersCell) playerBoltersCell.textContent = playerTotalBolters;
@@ -375,11 +420,27 @@
 
             for (let handNumber = 1; handNumber <= 7; handNumber++) {
                 const handCell = document.getElementById(`summary-hand-total-${handNumber}`);
-                if (handCell) handCell.textContent = handTotals[handNumber];
+                if (handCell) {
+                    handCell.textContent = '';
+                    handCell.appendChild(document.createTextNode(handTotals[handNumber]));
+                    if (handBolterTotals[handNumber] > 0) {
+                        const superscript = document.createElement('sup');
+                        superscript.textContent = handBolterTotals[handNumber];
+                        handCell.appendChild(superscript);
+                    }
+                }
             }
 
             const grandTotalCell = document.getElementById(`summary-grand-total`);
-            if (grandTotalCell) grandTotalCell.textContent = grandTotalScore;
+            if (grandTotalCell) {
+                grandTotalCell.textContent = '';
+                grandTotalCell.appendChild(document.createTextNode(grandTotalScore));
+                if (grandTotalBolters > 0) {
+                    const superscript = document.createElement('sup');
+                    superscript.textContent = grandTotalBolters;
+                    grandTotalCell.appendChild(superscript);
+                }
+            }
 
             const grandBoltersCell = document.getElementById(`summary-grand-bolters`);
             if (grandBoltersCell) grandBoltersCell.textContent = grandTotalBolters;

@@ -32,6 +32,9 @@
                 <% teamsByLeague[leagueName].forEach(team => { %>
                 <tr>
                     <td>
+                        <% if (team.logoPath) { %>
+                            <img src="<%= team.logoPath %>" alt="<%= team.teamName %> logo" style="width: 36px; height: 36px; object-fit: contain; vertical-align: middle; margin-right: 8px;">
+                        <% } %>
                         <a href="/teams?teamName=<%= encodeURIComponent(team.teamName || team.name || ('Team ' + team.id)) %>"><strong><%= team.teamName || team.name || ('Team ' + team.id) %></strong></a>
                     </td>
                     <td><%= team.homeAlley || '-' %></td>

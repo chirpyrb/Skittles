@@ -2,7 +2,14 @@
     <h2>Edit team</h2>
 </div>
 
-<form action="/teams/edit/<%= team.id %>" method="post" class="bulk-upload-panel">
+<form action="/teams/edit/<%= team.id %>" method="post" enctype="multipart/form-data" class="bulk-upload-panel">
+    <% if (team.logoPath) { %>
+        <img src="<%= team.logoPath %>" alt="<%= team.teamName %> logo" style="width: 72px; height: 72px; object-fit: contain;">
+    <% } %>
+    <label>
+        Team logo
+        <input type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/gif">
+    </label>
     <label>
         Team name
         <input type="text" name="teamName" value="<%= team.teamName %>" required>

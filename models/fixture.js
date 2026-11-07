@@ -16,6 +16,10 @@ async function getAllFixtures() {
         Away.id as awayTeamID, \
         COALESCE(Home.teamName, 'BYE') AS homeTeam, \
         COALESCE(Away.teamName, 'BYE') AS awayTeam, \
+        Home.logoPath AS homeTeamLogo, \
+        Away.logoPath AS awayTeamLogo, \
+        Home.homeAlley AS alleyId, \
+        COALESCE(Alleys.name, 'Unassigned alley') AS alleyName, \
         CASE WHEN Fixtures.status = 'Bye' THEN 1 ELSE COALESCE(Home.home_night, Away.home_night, 1) END AS matchDay, \
         Fixtures.matchDate, \
         Fixtures.leagueId, \
@@ -26,6 +30,7 @@ async function getAllFixtures() {
         FROM Fixtures \
         LEFT JOIN Teams Home ON Home.id = Fixtures.homeTeam \
         LEFT JOIN Teams Away ON Away.id = Fixtures.awayTeam \
+        LEFT JOIN Alleys ON Alleys.id = Home.homeAlley \
         LEFT JOIN Competitions ON Competitions.id = Fixtures.competition \
         ;")
 
@@ -59,6 +64,10 @@ async function getAllFixturesByTeamID(teamID) {
         Away.id as awayTeamID, \
         COALESCE(Home.teamName, 'BYE') AS homeTeam, \
         COALESCE(Away.teamName, 'BYE') AS awayTeam, \
+        Home.logoPath AS homeTeamLogo, \
+        Away.logoPath AS awayTeamLogo, \
+        Home.homeAlley AS alleyId, \
+        COALESCE(Alleys.name, 'Unassigned alley') AS alleyName, \
         CASE WHEN Fixtures.status = 'Bye' THEN 1 ELSE COALESCE(Home.home_night, Away.home_night, 1) END AS matchDay, \
         Fixtures.matchDate, \
         Fixtures.leagueId, \
@@ -69,6 +78,7 @@ async function getAllFixturesByTeamID(teamID) {
         FROM Fixtures \
         LEFT JOIN Teams Home ON Home.id = Fixtures.homeTeam \
         LEFT JOIN Teams Away ON Away.id = Fixtures.awayTeam \
+        LEFT JOIN Alleys ON Alleys.id = Home.homeAlley \
         LEFT JOIN Competitions ON Competitions.id = Fixtures.competition \
         WHERE Fixtures.homeTeam = ? OR Fixtures.awayTeam = ?;",
         [teamID, teamID])
@@ -635,6 +645,15 @@ async function confirmFixture(fixtureId) {
     await SQ3.execute(SQ3.db, 'UPDATE Fixtures SET status = "Confirmed" WHERE id = ?', [fixtureId])
 }
 
+// Allow an authorised league secretary to finalise provisional scores without captain approvals.
+async function finaliseFixture(fixtureId) {
+    const fixtureInfo = await getFixtureInfo(fixtureId)
+    if (!fixtureInfo || fixtureInfo.status !== 'Provisional') {
+        throw new Error('Only provisional scores can be finalised.')
+    }
+    await SQ3.execute(SQ3.db, 'UPDATE Fixtures SET status = "Confirmed" WHERE id = ?', [fixtureId])
+}
+
 // Generate home-and-away fixtures for every division team pair.
 async function generateSeasonFixtures(seasonId, seasonStartDateStr = '2026-09-07') {
     const divisions = [1, 2, 3];
@@ -690,6 +709,7 @@ module.exports = {
     getFixtureApprovalStatus,
     approveFixture,
     confirmFixture,
+    finaliseFixture,
     generateSeasonFixtures
 }
 

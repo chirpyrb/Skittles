@@ -111,7 +111,7 @@ async function calculateStandings(seasonId, divisionId) {
     if (!divId) return []
 
     const teams = await SQ3.fetchAll(SQ3.db, `
-        SELECT DISTINCT t.id, t.teamName AS teamName
+        SELECT DISTINCT t.id, t.teamName AS teamName, t.logoPath
         FROM Teams t
         WHERE t.division = ?
            OR t.id IN (
@@ -126,6 +126,7 @@ async function calculateStandings(seasonId, divisionId) {
         teamMap[t.id] = {
             teamId: t.id,
             teamName: t.teamName,
+            logoPath: t.logoPath,
             played: 0,
             won: 0,
             drawn: 0,
@@ -311,4 +312,3 @@ module.exports = {
     getAllLeagueTables,
     executePromotionAndRelegation
 }
-

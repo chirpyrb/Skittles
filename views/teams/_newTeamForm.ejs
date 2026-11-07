@@ -1,6 +1,9 @@
 <label for="newTeamName">Team Name:</label>
 <input id="newTeamName" type="text" name="newTeamName" value="" required>
 
+<label for="newTeamLogo">Team Logo:</label>
+<input id="newTeamLogo" type="file" name="logo" accept="image/png,image/jpeg,image/webp,image/gif">
+
 <label for="newTeamAlley">Home Alley:</label>
 <select id="newTeamAlley" name="newTeamAlley" required>
     <% alleyList.forEach(alley => { %>

@@ -59,10 +59,11 @@
             </form>
         <% } %>
 
-        <% if (user && (user.access === 'LeagueSecretary' || user.access === 'dev') && approval.homeApprovedBy && approval.awayApprovedBy) { %>
+        <% const canSecretaryFinalise = user && (user.access === 'LeagueSecretary' || user.access === 'dev'); %>
+        <% if (canSecretaryFinalise) { %>
             <form action="/fixtures/scorecard/confirm" method="post">
                 <input type="hidden" name="gameid" value="<%= gameInfo.id %>">
-                <button type="submit">Confirm scores</button>
+                <button type="submit">Finalise scores without captain approvals</button>
             </form>
         <% } %>
     </div>
@@ -71,7 +72,6 @@
 <% } %>
 <div>
     <nav>
-        <li>Teams</li>
         <div>
             <li>
                 <%=gameInfo.homeTeam%>
@@ -96,10 +96,14 @@
             ]; %>
             <% for (const scorecardTeam of scorecardTeams) { %>
                 <% const handTotals = Array(7).fill(0); %>
+                <% const handBolterTotals = Array(7).fill(0); %>
                 <% let teamTotal = 0; %>
+                <% let teamBolterTotal = 0; %>
                 <% scorecardTeam.players.forEach(score => { %>
                     <% score.hands.forEach((handScore, handIndex) => { handTotals[handIndex] += handScore; }); %>
+                    <% (score.handBolters || []).forEach((bolterCount, handIndex) => { handBolterTotals[handIndex] += bolterCount || 0; }); %>
                     <% teamTotal += score.total; %>
+                    <% teamBolterTotal += score.bolters || 0; %>
                 <% }); %>
                 <section class="team-scorecard">
                     <h4 class="team-scorecard-heading">
@@ -121,10 +125,23 @@
                                 <% for (const score of scorecardTeam.players) { %>
                                     <tr>
                                         <th scope="row"><%= score.playerName %></th>
-                                        <% for (const handScore of score.hands) { %>
-                                            <td><%= handScore %></td>
+                                        <% for (let handIndex = 0; handIndex < score.hands.length; handIndex++) { %>
+                                            <% 
+                                                let formattedScore = String(score.hands[handIndex]);
+                                                const bolterCount = score.handBolters ? (parseInt(score.handBolters[handIndex]) || 0) : 0;
+                                                formattedScore += '`'.repeat(bolterCount);
+                                                if (score.handSquares && score.handSquares[handIndex]) {
+                                                    formattedScore = `[${formattedScore}]`;
+                                                }
+                                                if (score.handFloppers && score.handFloppers[handIndex]) {
+                                                    formattedScore = `{${formattedScore}}`;
+                                                }
+                                            %>
+                                            <td><%= formattedScore %></td>
                                         <% } %>
-                                        <td class="scorecard-player-total"><%= score.total %></td>
+                                        <td class="scorecard-player-total">
+                                            <%= score.total %><% if (score.bolters > 0) { %><sup><%= score.bolters %></sup><% } %>
+                                        </td>
                                     </tr>
                                 <% } %>
                                 <% if (scorecardTeam.players.length === 0) { %>
@@ -134,10 +151,14 @@
                             <tfoot>
                                 <tr>
                                     <th scope="row">Hand totals</th>
-                                    <% for (const handTotal of handTotals) { %>
-                                        <td><%= handTotal %></td>
+                                    <% for (let handIndex = 0; handIndex < handTotals.length; handIndex++) { %>
+                                        <td>
+                                            <%= handTotals[handIndex] %><% if (handBolterTotals[handIndex] > 0) { %><sup><%= handBolterTotals[handIndex] %></sup><% } %>
+                                        </td>
                                     <% } %>
-                                    <td class="scorecard-team-total"><%= teamTotal %></td>
+                                    <td class="scorecard-team-total">
+                                        <%= teamTotal %><% if (teamBolterTotal > 0) { %><sup><%= teamBolterTotal %></sup><% } %>
+                                    </td>
                                 </tr>
                             </tfoot>
                         </table>

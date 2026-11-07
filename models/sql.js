@@ -168,6 +168,7 @@ const initSchema = async () => {
   await addColumn('Competitions', 'leagueId', 'INTEGER')
   await addColumn('Seasons', 'leagueId', 'INTEGER')
   await addColumn('Teams', 'leagueId', 'INTEGER')
+  await addColumn('Teams', 'logoPath', 'TEXT')
   await addColumn('Fixtures', 'leagueId', 'INTEGER')
 
   await execute(db, `

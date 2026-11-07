@@ -6,7 +6,7 @@ async function initTable() {
 
 // Find a team by name and return readable alley, division, and league details.
 async function getTeamByName(teamName) {
-    const t = await SQ3.fetchFirst(SQ3.db, "SELECT Teams.id, Teams.teamName, Teams.homeAlley AS homeAlleyId, Teams.division AS divisionId, Teams.leagueId, Teams.home_night AS homeNight, Alleys.name AS alleyName, Divisions.name AS divisionName, Leagues.name AS leagueName FROM Teams LEFT JOIN Alleys ON Teams.homeAlley = Alleys.id LEFT JOIN Divisions ON Teams.division = Divisions.id LEFT JOIN Leagues ON Teams.leagueId = Leagues.id WHERE Teams.teamName = ?;", [teamName])
+    const t = await SQ3.fetchFirst(SQ3.db, "SELECT Teams.id, Teams.teamName, Teams.homeAlley AS homeAlleyId, Teams.division AS divisionId, Teams.leagueId, Teams.home_night AS homeNight, Teams.logoPath, Alleys.name AS alleyName, Divisions.name AS divisionName, Leagues.name AS leagueName FROM Teams LEFT JOIN Alleys ON Teams.homeAlley = Alleys.id LEFT JOIN Divisions ON Teams.division = Divisions.id LEFT JOIN Leagues ON Teams.leagueId = Leagues.id WHERE Teams.teamName = ?;", [teamName])
     if (!t) return null;
 
     return {
@@ -18,7 +18,8 @@ async function getTeamByName(teamName) {
         division: t.divisionName || (t.divisionId ? `Division ${t.divisionId}` : '-'),
         leagueId: t.leagueId,
         league: t.leagueName || (t.leagueId ? `League #${t.leagueId}` : '-'),
-        homeNight: t.homeNight
+        homeNight: t.homeNight,
+        logoPath: t.logoPath
     }
 }
 
@@ -38,7 +39,7 @@ async function getTeamForFixtureByName(teamName) {
 
 // Return all teams with readable alley, division, league, and home-night fields.
 async function getAllTeams() {
-    const teams = await SQ3.fetchAll(SQ3.db, "SELECT Teams.id, Teams.teamName, Teams.homeAlley AS homeAlleyId, Teams.division AS divisionId, Teams.leagueId, Teams.home_night AS homeNight, Alleys.name AS alleyName, Divisions.name AS divisionName, Leagues.name AS leagueName FROM Teams LEFT JOIN Alleys ON Teams.homeAlley = Alleys.id LEFT JOIN Divisions ON Teams.division = Divisions.id LEFT JOIN Leagues ON Teams.leagueId = Leagues.id ORDER BY Teams.teamName ASC;")
+    const teams = await SQ3.fetchAll(SQ3.db, "SELECT Teams.id, Teams.teamName, Teams.homeAlley AS homeAlleyId, Teams.division AS divisionId, Teams.leagueId, Teams.home_night AS homeNight, Teams.logoPath, Alleys.name AS alleyName, Divisions.name AS divisionName, Leagues.name AS leagueName FROM Teams LEFT JOIN Alleys ON Teams.homeAlley = Alleys.id LEFT JOIN Divisions ON Teams.division = Divisions.id LEFT JOIN Leagues ON Teams.leagueId = Leagues.id ORDER BY Teams.teamName ASC;")
     
     return (teams || []).map(t => {
         const aName = t.alleyName || (t.homeAlleyId ? `Alley #${t.homeAlleyId}` : '-');
@@ -51,7 +52,8 @@ async function getAllTeams() {
             division: dName,
             leagueId: t.leagueId,
             league: lName,
-            homeNight: t.homeNight
+            homeNight: t.homeNight,
+            logoPath: t.logoPath
         }
     })
 }
@@ -73,12 +75,17 @@ async function getTeamsForLeague(leagueId) {
 }
 
 // Insert a team with its home alley and league.
-async function createTeam(newTeamName, newTeamAlley, leagueId) {
-    return await SQ3.execute(SQ3.db, 'INSERT INTO Teams(teamName,homeAlley,leagueId) VALUES (?,?,?)', [newTeamName, newTeamAlley, leagueId])
+async function createTeam(newTeamName, newTeamAlley, leagueId, logoPath = null) {
+    return await SQ3.execute(SQ3.db, 'INSERT INTO Teams(teamName,homeAlley,leagueId,logoPath) VALUES (?,?,?,?)', [newTeamName, newTeamAlley, leagueId, logoPath])
 }
 
 // Update a team's name, home alley, division, home night, and league.
-async function updateTeam(teamId, teamName, homeAlley, divisionId, homeNight, leagueId) {
+async function updateTeam(teamId, teamName, homeAlley, divisionId, homeNight, leagueId, logoPath = undefined) {
+    if (logoPath !== undefined) {
+        return await SQ3.execute(SQ3.db,
+            'UPDATE Teams SET teamName = ?, homeAlley = ?, division = ?, home_night = ?, leagueId = ?, logoPath = ? WHERE id = ?',
+            [teamName, homeAlley, divisionId, homeNight, leagueId, logoPath, teamId])
+    }
     return await SQ3.execute(SQ3.db,
         'UPDATE Teams SET teamName = ?, homeAlley = ?, division = ?, home_night = ?, leagueId = ? WHERE id = ?',
         [teamName, homeAlley, divisionId, homeNight, leagueId, teamId])

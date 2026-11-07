@@ -35,6 +35,7 @@ async function getScorecardsForFixture(fixtureId) {
     await initTable()
     return await SQ3.fetchAll(SQ3.db, `
         SELECT Scorecards.teamId AS Team,
+            Scorecards.playerId AS Player,
             Scorecards.playerIndex AS Position,
             Scorecards.handNumber AS Hand,
             Scorecards.score AS Score,
