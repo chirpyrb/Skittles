@@ -11,6 +11,7 @@ const division = require('../models/division')
 const bulkImport = require('../models/bulkImport')
 const competition = require('../models/competition')
 const league = require('../models/league')
+const fixture = require('../models/fixture')
 
 const teamLogoDirectory = path.join(__dirname, '..', 'public', 'images', 'team-logos')
 fs.mkdirSync(teamLogoDirectory, { recursive: true })
@@ -61,7 +62,6 @@ router.get('/', async (req, res) => {
         }
         const teamName = req.query.teamName
         const qTeam = await team.getTeamByName(teamName)
-        const playerList = await player.getPlayersOnTeamByName(teamName)
         const currentSeason = await competition.ensureCurrentSeason()
         const competitions = await competition.getAllCompetitions()
         const competitionIds = competitions
@@ -70,11 +70,25 @@ router.get('/', async (req, res) => {
         const playerStats = qTeam
             ? await player.getPlayerStatsForTeamSeason(qTeam.id, currentSeason.seasonStartYear, competitionIds)
             : []
+        const teamFixtures = qTeam ? await fixture.getAllFixturesByTeamID(qTeam.id) : []
+        const previousResults = teamFixtures
+            .filter(currentFixture => ['Completed', 'Confirmed'].includes(currentFixture.status) ||
+                (currentFixture.homeScore != null && currentFixture.awayScore != null &&
+                    ['Provisional', 'Completed', 'Confirmed'].includes(currentFixture.status)))
+            .sort((a, b) => new Date(b.matchDate) - new Date(a.matchDate))
+        const upcomingFixtures = teamFixtures
+            .filter(currentFixture => !previousResults.includes(currentFixture) && currentFixture.status !== 'Bye')
+            .sort((a, b) => new Date(a.matchDate) - new Date(b.matchDate))
+        const standings = qTeam && qTeam.divisionId
+            ? await division.calculateStandings(currentSeason.id, qTeam.divisionId)
+            : []
         res.render('teams/teamPage', {
             team: qTeam,
-            playerList: playerList,
             playerStats: playerStats,
             seasonStartYear: currentSeason.seasonStartYear,
+            previousResults,
+            upcomingFixtures,
+            standings,
             user: req.session.user
         })
     } else {

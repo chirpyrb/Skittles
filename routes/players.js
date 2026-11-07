@@ -5,6 +5,7 @@ const player = require('../models/player')
 const team = require('../models/team')
 const bodyParser = require('body-parser')
 const bulkImport = require('../models/bulkImport')
+const competition = require('../models/competition')
 
 function requireRegisteredUser(req, res, next) {
     if (!req.session.user) {
@@ -37,7 +38,7 @@ function requireLeagueSecretary(req, res, next) {
 router.get('/', requireRegisteredUser, async (req, res) => {
     try {
         const playerList = await player.getAllPlayers()
-        res.render('players/index', { playerList: playerList })
+        res.render('players/index', { playerList: playerList, user: req.session.user })
     } catch (err) {
         console.error(err)
         res.redirect('/')
@@ -62,6 +63,26 @@ router.get('/new', requirePlayerManagementAccess, async (req, res) => {
 
 router.get('/bulk-upload', bulkImport.requireBulkUploadAccess, (req, res) => {
     res.render('players/bulkUpload', { imported: null, errors: [] })
+})
+
+router.get('/:id', requireRegisteredUser, async (req, res) => {
+    try {
+        const playerInfo = await player.getPlayerById(req.params.id)
+        if (!playerInfo) return res.status(404).send('Player not found')
+
+        const currentSeason = await competition.ensureCurrentSeason()
+        const seasonScores = await player.getPlayerSeasonScores(playerInfo.id, currentSeason.seasonStartYear)
+        res.render('players/playerPage', {
+            player: playerInfo,
+            seasonStartYear: currentSeason.seasonStartYear,
+            hands: seasonScores.hands,
+            games: seasonScores.games,
+            user: req.session.user
+        })
+    } catch (error) {
+        console.error('Error loading player page:', error)
+        res.status(500).send('Unable to load player scores.')
+    }
 })
 
 router.post('/bulk-upload', bulkImport.requireBulkUploadAccess, (req, res, next) => {

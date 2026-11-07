@@ -1,0 +1,113 @@
+<div class="directory-toolbar">
+    <h2><%= player.firstName %> <%= player.secondName %></h2>
+</div>
+<div>
+    <span><b>Alias:</b> <%= player.alias || '-' %></span>
+    <span style="margin-left: 20px;"><b>Team:</b> <% if (player.teamId) { %><a href="/teams?teamName=<%= encodeURIComponent(player.teamName) %>"><%= player.teamName %></a><% } else { %>-<% } %></span>
+</div>
+
+<style>
+    .player-tabs { margin-top: 24px; }
+    .player-tab-list { display: flex; gap: 8px; border-bottom: 2px solid #cbd5e1; margin-bottom: 16px; }
+    .player-tab-button { border: 0; border-bottom: 3px solid transparent; background: transparent; padding: 10px 14px; cursor: pointer; font-weight: 700; color: #475569; }
+    .player-tab-button.active { color: #2563eb; border-bottom-color: #2563eb; }
+    .player-tab-panel { display: none; }
+    .player-tab-panel.active { display: block; }
+</style>
+
+<div class="player-tabs">
+    <div class="player-tab-list" role="tablist">
+        <button type="button" class="player-tab-button active" role="tab" aria-selected="true" data-player-tab="hands">Individual hands</button>
+        <button type="button" class="player-tab-button" role="tab" aria-selected="false" data-player-tab="games">Games</button>
+    </div>
+
+    <section class="player-tab-panel active" data-player-panel="hands" role="tabpanel">
+        <h3><%= seasonStartYear %>/<%= String(seasonStartYear + 1).slice(-2) %> individual hands</h3>
+        <% if (hands && hands.length) { %>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Opponent</th>
+                        <th>Hand</th>
+                        <th>Score</th>
+                        <th>Bolters</th>
+                        <th>Flopper</th>
+                        <th>Square</th>
+                        <th>Missed chance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% hands.forEach(hand => { %>
+                        <%
+                            let displayScore = String(hand.score || 0) + '`'.repeat(Number(hand.bolters) || 0);
+                            if (Number(hand.isSquare) > 0) displayScore = `[${displayScore}]`;
+                            if (Number(hand.isFlopper) > 0) displayScore = `{${displayScore}}`;
+                        %>
+                        <tr>
+                            <td><%= hand.matchDate ? new Date(hand.matchDate).toLocaleDateString('en-GB') : '-' %></td>
+                            <td><%= hand.opponent || '-' %></td>
+                            <td><%= hand.handNumber %></td>
+                            <td><strong><%= displayScore %></strong></td>
+                            <td><%= hand.bolters || 0 %></td>
+                            <td><%= Number(hand.isFlopper) > 0 ? 'Yes' : '-' %></td>
+                            <td><%= Number(hand.isSquare) > 0 ? 'Yes' : '-' %></td>
+                            <td><%= Number(hand.isChance) > 0 ? 'Yes' : '-' %></td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        <% } else { %>
+            <p class="muted">No individual hand scores are available for this season.</p>
+        <% } %>
+    </section>
+
+    <section class="player-tab-panel" data-player-panel="games" role="tabpanel">
+        <h3><%= seasonStartYear %>/<%= String(seasonStartYear + 1).slice(-2) %> games</h3>
+        <% if (games && games.length) { %>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Opponent</th>
+                        <th>Total pins</th>
+                        <th>Bolters</th>
+                        <th>Floppers</th>
+                        <th>Squares</th>
+                        <th>Missed chances</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% games.forEach(game => { %>
+                        <tr>
+                            <td><%= game.matchDate ? new Date(game.matchDate).toLocaleDateString('en-GB') : '-' %></td>
+                            <td><%= game.opponent || '-' %></td>
+                            <td><strong><%= game.totalPins %><% if (game.bolters > 0) { %><sup><%= game.bolters %></sup><% } %></strong></td>
+                            <td><%= game.bolters %></td>
+                            <td><%= game.floppers %></td>
+                            <td><%= game.squares %></td>
+                            <td><%= game.chances %></td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        <% } else { %>
+            <p class="muted">No game scores are available for this season.</p>
+        <% } %>
+    </section>
+</div>
+
+<script>
+    document.querySelectorAll('[data-player-tab]').forEach(button => {
+        button.addEventListener('click', () => {
+            document.querySelectorAll('[data-player-tab]').forEach(tab => {
+                const active = tab === button;
+                tab.classList.toggle('active', active);
+                tab.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            document.querySelectorAll('[data-player-panel]').forEach(panel => {
+                panel.classList.toggle('active', panel.dataset.playerPanel === button.dataset.playerTab);
+            });
+        });
+    });
+</script>

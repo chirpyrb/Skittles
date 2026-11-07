@@ -35,6 +35,76 @@ async function getAllPlayers() {
     return await SQ3.fetchAll(SQ3.db, `SELECT P.id, P.firstName, P.secondName, P.alias, P.team AS teamId, P.approved, T.teamName FROM Players P LEFT JOIN Teams T ON P.team = T.id ORDER BY P.secondName ASC, P.firstName ASC;`)
 }
 
+async function getPlayerById(playerId) {
+    return await SQ3.fetchFirst(SQ3.db, `
+        SELECT P.id, P.firstName, P.secondName, P.alias, P.team AS teamId, P.approved,
+            T.teamName, T.logoPath
+        FROM Players P
+        LEFT JOIN Teams T ON T.id = P.team
+        WHERE P.id = ?`,
+        [playerId])
+}
+
+async function getPlayerSeasonScores(playerId, seasonStartYear) {
+    const rows = await SQ3.fetchAll(SQ3.db, `
+        SELECT S.fixtureId, S.handNumber, S.score, S.bolters,
+            S.isFlopper, S.isSquare, S.isChance,
+            F.matchDate, F.status, F.homeTeam, F.awayTeam,
+            Home.teamName AS homeTeamName, Away.teamName AS awayTeamName,
+            S.teamId
+        FROM Scorecards S
+        INNER JOIN Fixtures F ON F.id = S.fixtureId
+        LEFT JOIN Seasons SeasonLink ON SeasonLink.id = F.seasonId
+        LEFT JOIN Competitions CompetitionLink ON CompetitionLink.id = F.competition
+        LEFT JOIN Teams Home ON Home.id = F.homeTeam
+        LEFT JOIN Teams Away ON Away.id = F.awayTeam
+        WHERE S.playerId = ?
+            AND F.status IN ('Provisional', 'Confirmed', 'Completed')
+            AND (
+                SeasonLink.seasonStartYear = ?
+                OR CompetitionLink.seasonStartYear = ?
+            )
+        ORDER BY F.matchDate ASC, S.handNumber ASC`,
+        [playerId, seasonStartYear, seasonStartYear])
+
+    const hands = (rows || []).map(row => {
+        const isHomeTeam = String(row.teamId) === String(row.homeTeam)
+        return {
+            ...row,
+            opponent: isHomeTeam ? row.awayTeamName : row.homeTeamName
+        }
+    })
+
+    const gamesByFixture = new Map()
+    for (const hand of hands) {
+        if (!gamesByFixture.has(hand.fixtureId)) {
+            gamesByFixture.set(hand.fixtureId, {
+                fixtureId: hand.fixtureId,
+                matchDate: hand.matchDate,
+                status: hand.status,
+                opponent: hand.opponent,
+                totalPins: 0,
+                bolters: 0,
+                floppers: 0,
+                squares: 0,
+                chances: 0
+            })
+        }
+        const game = gamesByFixture.get(hand.fixtureId)
+        game.totalPins += Number(hand.score) || 0
+        game.bolters += Number(hand.bolters) || 0
+        game.floppers += Number(hand.isFlopper) || 0
+        game.squares += Number(hand.isSquare) || 0
+        game.chances += Number(hand.isChance) || 0
+    }
+
+    return {
+        hands,
+        games: Array.from(gamesByFixture.values()).sort((a, b) =>
+            new Date(b.matchDate) - new Date(a.matchDate))
+    }
+}
+
 // Calculate player scoring totals and per-game averages for selected competitions.
 async function getPlayerStatsForTeamSeason(teamId, seasonStartYear, competitionIds) {
     const scorecard = require('./scorecard')
@@ -76,7 +146,7 @@ async function getPlayerStatsForTeamSeason(teamId, seasonStartYear, competitionI
             teamId
         ])
 
-    return rows.map(row => {
+    const playerStats = rows.map(row => {
         const gamesPlayed = Number(row.gamesPlayed) || 0
         const totalPins = Number(row.totalPins) || 0
         const bolters = Number(row.bolters) || 0
@@ -95,6 +165,18 @@ async function getPlayerStatsForTeamSeason(teamId, seasonStartYear, competitionI
             chances
         }
     })
+
+    return playerStats.sort((a, b) => {
+        if (b.scoreAverage !== a.scoreAverage) {
+            return b.scoreAverage - a.scoreAverage
+        }
+        if (b.totalPins !== a.totalPins) {
+            return b.totalPins - a.totalPins
+        }
+        const playerNameA = `${a.secondName || ''} ${a.firstName || ''}`.trim()
+        const playerNameB = `${b.secondName || ''} ${b.firstName || ''}`.trim()
+        return playerNameA.localeCompare(playerNameB)
+    })
 }
 
 // Mark a player as approved for scorecard selection.
@@ -109,6 +191,8 @@ module.exports = {
     createPlayer,
     updatePlayer,
     getAllPlayers,
+    getPlayerById,
+    getPlayerSeasonScores,
     getPlayerStatsForTeamSeason,
     approvePlayer
 }

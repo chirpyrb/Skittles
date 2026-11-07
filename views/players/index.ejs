@@ -24,7 +24,7 @@
         <tbody>
             <% playerList.forEach(p => { %>
                 <tr>
-                    <td><strong><%= p.firstName %> <%= p.secondName %></strong></td>
+                    <td><strong><a href="/players/<%= p.id %>"><%= p.firstName %> <%= p.secondName %></a></strong></td>
                     <td><%= p.alias %></td>
                     <td><%= p.teamName || '-' %></td>
                     <td><%= p.approved ? 'Approved' : 'Pending approval' %></td>

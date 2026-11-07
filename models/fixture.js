@@ -55,7 +55,7 @@ async function getAllFixtures() {
 // Return fixtures involving a specific team.
 async function getAllFixturesByTeamID(teamID) {
     // Returns a list of all fixtures for a given team ID.
-    const fixtureList = await SQ3.fetchAll(SQ3.db,
+    let fixtureList = await SQ3.fetchAll(SQ3.db,
         "SELECT Fixtures.id, \
         Fixtures.status, \
         Fixtures.homeScore, \
@@ -694,6 +694,7 @@ async function generateSeasonFixtures(seasonId, seasonStartDateStr = '2026-09-07
 module.exports = {
     initTable,
     getAllFixtures,
+    getAllFixturesByTeamID,
     getFixtureStatus,
     getFixtureInfo,
     beginGame,

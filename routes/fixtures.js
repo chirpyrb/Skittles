@@ -40,6 +40,46 @@ function canManageTeam(user, fixtureInfo, teamId) {
         String(teamId) === String(fixtureInfo.awayTeamID) && fixtureInfo.awayCaptainId === user.id
 }
 
+async function getTeamHandTotals(fixtureId, fixtureInfo) {
+    const temporaryScores = await fixture.getAllScoresForFixture(fixtureId)
+    const submittedScores = await scorecard.getScorecardsForFixture(fixtureId)
+    const scoresByEntry = new Map()
+
+    for (const entry of (temporaryScores || [])) {
+        const teamId = entry.Team || entry.teamId
+        const position = entry.Position
+        const hand = entry.Hand
+        if (teamId && hand) scoresByEntry.set(`${teamId}_${position}_${hand}`, entry)
+    }
+    for (const entry of (submittedScores || [])) {
+        const teamId = entry.Team
+        const position = entry.Position
+        const hand = entry.Hand
+        if (teamId && hand) scoresByEntry.set(`${teamId}_${position}_${hand}`, entry)
+    }
+
+    const totals = {}
+    for (const teamId of [fixtureInfo.homeTeamID, fixtureInfo.awayTeamID]) {
+        totals[teamId] = {
+            name: String(teamId) === String(fixtureInfo.homeTeamID) ? fixtureInfo.homeTeam : fixtureInfo.awayTeam,
+            hands: [0, 0, 0, 0, 0, 0, 0],
+            grandTotal: 0
+        }
+    }
+
+    for (const entry of scoresByEntry.values()) {
+        const teamId = entry.Team || entry.teamId
+        const team = totals[teamId]
+        const hand = parseInt(entry.Hand) || 0
+        if (!team || hand < 1 || hand > 7) continue
+        const score = parseInt(entry.Score) || 0
+        team.hands[hand - 1] += score
+        team.grandTotal += score
+    }
+
+    return totals
+}
+
 // Get all fixtures.
 router.get('/', async (req, res) => {
     try {
@@ -74,7 +114,8 @@ router.get('/live-scores', requireRegisteredUser, async (req, res) => {
         const scores = fixtureList.reduce((liveScores, currentFixture) => {
             liveScores[currentFixture.id] = {
                 homeScore: currentFixture.homeScore,
-                awayScore: currentFixture.awayScore
+                awayScore: currentFixture.awayScore,
+                status: currentFixture.status
             }
             return liveScores
         }, {})
@@ -383,12 +424,15 @@ router.get('/scorecard/new', async (req, res) => {
         if (id === 'null' || !id) return { alias: 'Empty' }
         return allPlayers.find(p => p.id == id) || { alias: 'Unknown' }
     })
+    const teamHandTotals = await getTeamHandTotals(fixtureID, fixtureInfo)
 
     res.render('fixtures/scorecard', {
         fixtureInfo: fixtureInfo,
         players: mappedPlayers,
         savedScores: savedScores,
-        resumeHand: resumeHand
+        resumeHand: resumeHand,
+        teamHandTotals: teamHandTotals,
+        currentTeamId: req.session.user.Team
     })
 })
 
@@ -511,13 +555,16 @@ router.post('/scorecard/new/team', async (req, res) => {
     const resumeHand = savedScores.reduce((highestHand, savedScore) => {
         return Math.max(highestHand, parseInt(savedScore.Hand) || 0)
     }, 1)
+    const teamHandTotals = await getTeamHandTotals(fixtureID, fixtureInfo)
 
     res.render('fixtures/scorecard', {
         teamSheet: req.session.teamSheet,
         players: mappedPlayers,
         fixtureInfo: fixtureInfo,
         savedScores: savedScores,
-        resumeHand: resumeHand
+        resumeHand: resumeHand,
+        teamHandTotals: teamHandTotals,
+        currentTeamId: targetTeamId
     })
 })
 

@@ -1,4 +1,4 @@
-<div class="scorecard-container" data-resume-hand="<%= resumeHand || 1 %>">
+<div class="scorecard-container" data-resume-hand="<%= resumeHand || 1 %>" data-current-team-id="<%= currentTeamId || '' %>">
     <!-- Stepper Header -->
     <div class="stepper-bar">
         <% for (let h = 1; h <= 7; h++) { %>
@@ -12,12 +12,28 @@
         <% for (let h = 1; h <= 7; h++) { %>
             <div class="live-hand-total">
                 <span>H<%= h %></span>
-                <strong class="live-hand-total-value" data-hand-total="<%= h %>">0</strong>
+                <% const homeTeamTotal = teamHandTotals && teamHandTotals[fixtureInfo.homeTeamID] ? teamHandTotals[fixtureInfo.homeTeamID].hands[h - 1] : 0; %>
+                <% const awayTeamTotal = teamHandTotals && teamHandTotals[fixtureInfo.awayTeamID] ? teamHandTotals[fixtureInfo.awayTeamID].hands[h - 1] : 0; %>
+                <strong class="live-hand-total-value">
+                    <span title="<%= fixtureInfo.homeTeam %>">
+                        <span data-team-hand-total="<%= fixtureInfo.homeTeamID %>" data-hand="<%= h %>"><%= homeTeamTotal %></span>
+                    </span>
+                    <span aria-hidden="true"> - </span>
+                    <span title="<%= fixtureInfo.awayTeam %>">
+                        <span data-team-hand-total="<%= fixtureInfo.awayTeamID %>" data-hand="<%= h %>"><%= awayTeamTotal %></span>
+                    </span>
+                </strong>
             </div>
         <% } %>
         <div class="live-hand-total live-hand-grand-total">
             <span>Total</span>
-            <strong class="live-hand-total-value" data-grand-total>0</strong>
+            <strong class="live-hand-total-value">
+                <% const homeGrandTotal = teamHandTotals && teamHandTotals[fixtureInfo.homeTeamID] ? teamHandTotals[fixtureInfo.homeTeamID].grandTotal : 0; %>
+                <% const awayGrandTotal = teamHandTotals && teamHandTotals[fixtureInfo.awayTeamID] ? teamHandTotals[fixtureInfo.awayTeamID].grandTotal : 0; %>
+                <span title="<%= fixtureInfo.homeTeam %>" data-team-grand-total="<%= fixtureInfo.homeTeamID %>"><%= homeGrandTotal %></span>
+                <span aria-hidden="true"> - </span>
+                <span title="<%= fixtureInfo.awayTeam %>" data-team-grand-total="<%= fixtureInfo.awayTeamID %>"><%= awayGrandTotal %></span>
+            </strong>
         </div>
     </div>
 
@@ -308,6 +324,7 @@
         function updateAllHandTotals() {
             let grandTotal = 0;
             let grandBolterTotal = 0;
+            const currentTeamId = scorecardContainer.dataset.currentTeamId;
 
             for (let handNumber = 1; handNumber <= 7; handNumber++) {
                 let handTotal = 0;
@@ -329,6 +346,11 @@
                         totalLabel.appendChild(superscript);
                     }
                 }
+                if (currentTeamId) {
+                    document.querySelectorAll(`[data-team-hand-total="${currentTeamId}"][data-hand="${handNumber}"]`).forEach(label => {
+                        label.textContent = handTotal;
+                    });
+                }
                 grandTotal += handTotal;
                 grandBolterTotal += handBolterTotal;
             }
@@ -342,6 +364,11 @@
                     superscript.textContent = grandBolterTotal;
                     grandTotalLabel.appendChild(superscript);
                 }
+            }
+            if (currentTeamId) {
+                document.querySelectorAll(`[data-team-grand-total="${currentTeamId}"]`).forEach(label => {
+                    label.textContent = grandTotal;
+                });
             }
         }
 

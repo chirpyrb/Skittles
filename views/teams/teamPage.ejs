@@ -27,41 +27,99 @@
     <span><a href="/divisions?divName=<%=team.division%>"><%=team.division%></a></span>
 </div>
 <div>
-    <b>Players:</b>
-    <% playerList.forEach(player => { %>
-    <div>
-        <span><%= player.firstName %></span>
-        <span><%= player.secondName %></span>
-        <span>(<%= player.alias %>)</span>
-    </div>
-    <% }) %>
-    <a href="/players/new?teamName=<%=team.teamName%>">Add player</a>
-</div>
-<div>
     <span><b>Home night:</b></span>
     <span><%= team.homeNight || '-' %><%= team.homeNight ? ' (Monday = 1)' : '' %></span>
 </div>
 
-<h3><%= seasonStartYear %>/<%= String(seasonStartYear + 1).slice(-2) %> player statistics</h3>
-<% if (playerStats && playerStats.length) { %>
-    <table>
-        <thead>
-            <tr>
-                <th>Player</th>
-                <th>Games played</th>
-                <th>Total pins</th>
-                <th>Score average</th>
-                <th>Bolters</th>
-                <th>Bolter average</th>
-                <th>Floppers</th>
-                <th>Squares</th>
-                <th>Missed chances</th>
-            </tr>
-        </thead>
-        <tbody>
-            <% playerStats.forEach(stats => { %>
+<style>
+    .team-tabs { margin-top: 24px; }
+    .team-tab-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        border-bottom: 2px solid #cbd5e1;
+        margin-bottom: 16px;
+    }
+    .team-tab-button {
+        border: 0;
+        border-bottom: 3px solid transparent;
+        background: transparent;
+        padding: 10px 14px;
+        cursor: pointer;
+        font-weight: 700;
+        color: #475569;
+    }
+    .team-tab-button.active {
+        color: #2563eb;
+        border-bottom-color: #2563eb;
+    }
+    .team-tab-panel { display: none; }
+    .team-tab-panel.active { display: block; }
+    .team-result-row, .team-fixture-row { display: grid; grid-template-columns: 120px 1fr 90px 1fr; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+    .team-fixture-row { grid-template-columns: 120px 1fr 90px 1fr; }
+</style>
+
+<div class="team-tabs">
+    <div class="team-tab-list" role="tablist">
+        <button type="button" class="team-tab-button active" role="tab" aria-selected="true" data-team-tab="results">Previous results</button>
+        <button type="button" class="team-tab-button" role="tab" aria-selected="false" data-team-tab="fixtures">Upcoming fixtures</button>
+        <button type="button" class="team-tab-button" role="tab" aria-selected="false" data-team-tab="stats">Player statistics</button>
+        <button type="button" class="team-tab-button" role="tab" aria-selected="false" data-team-tab="standings">Current standings</button>
+    </div>
+
+    <section class="team-tab-panel active" data-team-panel="results" role="tabpanel">
+        <h3>Previous results</h3>
+        <% if (previousResults && previousResults.length) { %>
+            <% previousResults.forEach(match => { %>
+                <div class="team-result-row">
+                    <span><%= new Date(match.matchDate).toLocaleDateString('en-GB') %></span>
+                    <strong><%= match.homeTeam %></strong>
+                    <span style="text-align: center;"><%= match.homeScore != null ? match.homeScore : '-' %> - <%= match.awayScore != null ? match.awayScore : '-' %></span>
+                    <strong><%= match.awayTeam %></strong>
+                </div>
+            <% }) %>
+        <% } else { %>
+            <p class="muted">No previous results are available.</p>
+        <% } %>
+    </section>
+
+    <section class="team-tab-panel" data-team-panel="fixtures" role="tabpanel">
+        <h3>Upcoming fixtures</h3>
+        <% if (upcomingFixtures && upcomingFixtures.length) { %>
+            <% upcomingFixtures.forEach(match => { %>
+                <div class="team-fixture-row">
+                    <span><%= new Date(match.matchDate).toLocaleDateString('en-GB') %></span>
+                    <strong><%= match.homeTeam %></strong>
+                    <span style="text-align: center;">vs</span>
+                    <strong><%= match.awayTeam %></strong>
+                </div>
+            <% }) %>
+        <% } else { %>
+            <p class="muted">No upcoming fixtures are available.</p>
+        <% } %>
+    </section>
+
+    <section class="team-tab-panel" data-team-panel="stats" role="tabpanel">
+        <h3><%= seasonStartYear %>/<%= String(seasonStartYear + 1).slice(-2) %> player statistics</h3>
+        <% if (playerStats && playerStats.length) { %>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>Games played</th>
+                        <th>Total pins</th>
+                        <th>Score average</th>
+                        <th>Bolters</th>
+                        <th>Bolter average</th>
+                        <th>Floppers</th>
+                        <th>Squares</th>
+                        <th>Missed chances</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% playerStats.forEach(stats => { %>
                 <tr>
-                    <td><strong><%= stats.firstName %> <%= stats.secondName %></strong><br><span class="muted"><%= stats.alias %></span></td>
+                    <td><strong><a href="/players/<%= stats.id %>"><%= stats.firstName %> <%= stats.secondName %></a></strong><br><span class="muted"><%= stats.alias %></span></td>
                     <td><%= stats.gamesPlayed %></td>
                     <td><%= stats.totalPins %></td>
                     <td><%= stats.scoreAverage %></td>
@@ -71,9 +129,58 @@
                     <td><%= stats.squares %></td>
                     <td><%= stats.chances %></td>
                 </tr>
-            <% }) %>
-        </tbody>
-    </table>
-<% } else { %>
-    <p class="muted">No submitted scores are available for this season.</p>
-<% } %>
+                    <% }) %>
+                </tbody>
+            </table>
+        <% } else { %>
+            <p class="muted">No submitted scores are available for this season.</p>
+        <% } %>
+    </section>
+
+    <section class="team-tab-panel" data-team-panel="standings" role="tabpanel">
+        <h3><%= team.division || 'Current standings' %></h3>
+        <% if (standings && standings.length) { %>
+            <table>
+                <thead>
+                    <tr><th>Pos</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>PF</th><th>PA</th><th>PD</th><th>Pts</th></tr>
+                </thead>
+                <tbody>
+                    <% standings.forEach(row => { %>
+                        <tr>
+                            <td><%= row.rank %></td>
+                            <td>
+                                <% if (row.logoPath) { %><img src="<%= row.logoPath %>" alt="" style="width:36px;height:36px;object-fit:contain;vertical-align:middle;margin-right:8px;"><% } %>
+                                <a href="/teams?teamName=<%= encodeURIComponent(row.teamName) %>"><strong><%= row.teamName %></strong></a>
+                            </td>
+                            <td><%= row.played %></td>
+                            <td><%= row.won %></td>
+                            <td><%= row.drawn %></td>
+                            <td><%= row.lost %></td>
+                            <td><%= row.pinsFor %></td>
+                            <td><%= row.pinsAgainst %></td>
+                            <td><%= row.pinDiff %></td>
+                            <td><strong><%= row.points %></strong></td>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        <% } else { %>
+            <p class="muted">No standings are available for this team.</p>
+        <% } %>
+    </section>
+</div>
+
+<script>
+    document.querySelectorAll('[data-team-tab]').forEach(button => {
+        button.addEventListener('click', () => {
+            document.querySelectorAll('[data-team-tab]').forEach(tab => {
+                const active = tab === button
+                tab.classList.toggle('active', active)
+                tab.setAttribute('aria-selected', active ? 'true' : 'false')
+            })
+            document.querySelectorAll('[data-team-panel]').forEach(panel => {
+                panel.classList.toggle('active', panel.dataset.teamPanel === button.dataset.teamTab)
+            })
+        })
+    })
+</script>
