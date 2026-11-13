@@ -58,6 +58,7 @@ const fixtureRouter = require('./routes/fixtures')
 const leagueRouter = require('./routes/leagues')
 const tablesRouter = require('./routes/tables')
 const liveRouter = require('./routes/live')
+const statsRouter = require('./routes/stats')
 const SQ3 = require('./models/sql')
 
 
@@ -72,6 +73,7 @@ app.use('/fixtures', fixtureRouter)
 app.use('/leagues', leagueRouter)
 app.use('/tables', tablesRouter)
 app.use('/live', liveRouter)
+app.use('/stats', statsRouter)
 app.use('/users', require('./routes/users'))
 
 async function initDatabase() {

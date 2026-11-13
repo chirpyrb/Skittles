@@ -83,6 +83,7 @@ async function getPlayerSeasonScores(playerId, seasonStartYear) {
                 matchDate: hand.matchDate,
                 status: hand.status,
                 opponent: hand.opponent,
+                hands: Array(7).fill(null),
                 totalPins: 0,
                 bolters: 0,
                 floppers: 0,
@@ -91,8 +92,19 @@ async function getPlayerSeasonScores(playerId, seasonStartYear) {
             })
         }
         const game = gamesByFixture.get(hand.fixtureId)
-        game.totalPins += Number(hand.score) || 0
-        game.bolters += Number(hand.bolters) || 0
+        const handIndex = Number(hand.handNumber) - 1
+        const score = Number(hand.score) || 0
+        const bolters = Number(hand.bolters) || 0
+        if (handIndex >= 0 && handIndex < game.hands.length) {
+            game.hands[handIndex] = {
+                score,
+                bolters,
+                isFlopper: Number(hand.isFlopper) || 0,
+                isSquare: Number(hand.isSquare) || 0
+            }
+        }
+        game.totalPins += score
+        game.bolters += bolters
         game.floppers += Number(hand.isFlopper) || 0
         game.squares += Number(hand.isSquare) || 0
         game.chances += Number(hand.isChance) || 0

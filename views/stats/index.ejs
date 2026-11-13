@@ -1,0 +1,122 @@
+<div class="directory-toolbar">
+    <div>
+        <h2>League statistics</h2>
+        <p class="muted">Explore player, team, and alley records.</p>
+    </div>
+</div>
+
+<style>
+    .stats-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: end;
+        padding: 16px;
+        margin: 16px 0 22px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+    }
+    .stats-filter { display: grid; gap: 5px; }
+    .stats-filter label { font-size: 0.88em; font-weight: 700; color: #475569; }
+    .stats-filter select { min-width: 150px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 5px; background: white; }
+    .stats-table-wrap { overflow-x: auto; }
+    .stats-table { width: 100%; border-collapse: collapse; }
+    .stats-table th, .stats-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+    .stats-table th { background: #f1f5f9; color: #334155; }
+    .stats-table tbody tr:nth-child(even) { background: #f8fafc; }
+    .stats-rank { color: #64748b; font-weight: 700; }
+    .stats-description { margin: -8px 0 18px; color: #64748b; }
+</style>
+
+<form class="stats-filters" method="get" action="/stats">
+    <div class="stats-filter">
+        <label for="stat">Statistic</label>
+        <select id="stat" name="stat">
+            <% Object.keys(statistics).forEach(id => { %>
+                <option value="<%= id %>" <%= id === statisticId ? 'selected' : '' %>><%= statistics[id].title %></option>
+            <% }) %>
+        </select>
+    </div>
+    <div class="stats-filter">
+        <label for="season">Season</label>
+        <select id="season" name="season">
+            <option value="all" <%= seasonYear === null ? 'selected' : '' %>>All seasons</option>
+            <% seasons.forEach(season => { %>
+                <option value="<%= season.year %>" <%= Number(season.year) === Number(seasonYear) ? 'selected' : '' %>>
+                    <%= season.year %>/<%= String(Number(season.year) + 1).slice(-2) %>
+                </option>
+            <% }) %>
+        </select>
+    </div>
+    <div class="stats-filter">
+        <label for="alley">Alley</label>
+        <select id="alley" name="alley">
+            <option value="">All alleys</option>
+            <% alleys.forEach(alley => { %>
+                <option value="<%= alley.id %>" <%= Number(alley.id) === Number(alleyId) ? 'selected' : '' %>><%= alley.name %></option>
+            <% }) %>
+        </select>
+    </div>
+    <% if (statistic.minimumGames) { %>
+        <div class="stats-filter">
+            <label for="minimumGames">Minimum games</label>
+            <select id="minimumGames" name="minimumGames">
+                <% [1, 3, 5, 10].forEach(count => { %>
+                    <option value="<%= count %>" <%= count === minimumGames ? 'selected' : '' %>><%= count %>+</option>
+                <% }) %>
+            </select>
+        </div>
+    <% } %>
+    <div class="stats-filter">
+        <label for="limit">Rows</label>
+        <select id="limit" name="limit">
+            <% [10, 20, 50].forEach(count => { %>
+                <option value="<%= count %>" <%= count === limit ? 'selected' : '' %>><%= count %></option>
+            <% }) %>
+        </select>
+    </div>
+    <button type="submit">Show records</button>
+</form>
+
+<section>
+    <h3><%= statistic.title %></h3>
+    <p class="stats-description"><%= statistic.description %></p>
+
+    <% if (statistic.requiresAlley && !alleyId) { %>
+        <p class="muted">Choose an alley to view these records.</p>
+    <% } else if (results.length) { %>
+        <div class="stats-table-wrap">
+            <table class="stats-table">
+                <thead>
+                    <tr>
+                        <% statistic.columns.forEach(column => { %>
+                            <th scope="col"><%= column.label %></th>
+                        <% }) %>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% results.forEach(row => { %>
+                        <tr>
+                            <% statistic.columns.forEach(column => { %>
+                                <td class="<%= column.key === 'rank' ? 'stats-rank' : '' %>">
+                                    <% if (column.link === 'player' && row.playerId) { %>
+                                        <a href="/players/<%= row.playerId %>"><%= row[column.key] %></a>
+                                    <% } else if (column.link === 'team' && row.teamId && row.teamName) { %>
+                                        <a href="/teams?teamName=<%= encodeURIComponent(row.teamName) %>"><%= row[column.key] %></a>
+                                    <% } else if (column.date) { %>
+                                        <%= row[column.key] ? new Date(row[column.key]).toLocaleDateString('en-GB') : '-' %>
+                                    <% } else { %>
+                                        <%= row[column.key] == null ? '-' : row[column.key] %>
+                                    <% } %>
+                                </td>
+                            <% }) %>
+                        </tr>
+                    <% }) %>
+                </tbody>
+            </table>
+        </div>
+    <% } else { %>
+        <p class="muted">No records match the selected filters.</p>
+    <% } %>
+</section>

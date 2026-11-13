@@ -22,43 +22,60 @@
     </div>
 
     <section class="player-tab-panel active" data-player-panel="hands" role="tabpanel">
-        <h3><%= seasonStartYear %>/<%= String(seasonStartYear + 1).slice(-2) %> individual hands</h3>
-        <% if (hands && hands.length) { %>
+        <h3><%= seasonStartYear %>/<%= String(seasonStartYear + 1).slice(-2) %> scores by game and hand</h3>
+        <% if (games && games.length) { %>
+            <% const handTotals = Array(7).fill(0); %>
+            <% const handCounts = Array(7).fill(0); %>
+            <% let seasonTotal = 0; %>
             <table>
                 <thead>
                     <tr>
                         <th>Date</th>
                         <th>Opponent</th>
-                        <th>Hand</th>
-                        <th>Score</th>
-                        <th>Bolters</th>
-                        <th>Flopper</th>
-                        <th>Square</th>
-                        <th>Missed chance</th>
+                        <% for (let handIndex = 1; handIndex <= 7; handIndex++) { %>
+                            <th>H<%= handIndex %></th>
+                        <% } %>
+                        <th>Game total</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <% hands.forEach(hand => { %>
-                        <%
-                            let displayScore = String(hand.score || 0) + '`'.repeat(Number(hand.bolters) || 0);
-                            if (Number(hand.isSquare) > 0) displayScore = `[${displayScore}]`;
-                            if (Number(hand.isFlopper) > 0) displayScore = `{${displayScore}}`;
-                        %>
+                    <% games.forEach(game => { %>
                         <tr>
-                            <td><%= hand.matchDate ? new Date(hand.matchDate).toLocaleDateString('en-GB') : '-' %></td>
-                            <td><%= hand.opponent || '-' %></td>
-                            <td><%= hand.handNumber %></td>
-                            <td><strong><%= displayScore %></strong></td>
-                            <td><%= hand.bolters || 0 %></td>
-                            <td><%= Number(hand.isFlopper) > 0 ? 'Yes' : '-' %></td>
-                            <td><%= Number(hand.isSquare) > 0 ? 'Yes' : '-' %></td>
-                            <td><%= Number(hand.isChance) > 0 ? 'Yes' : '-' %></td>
+                            <td><%= game.matchDate ? new Date(game.matchDate).toLocaleDateString('en-GB') : '-' %></td>
+                            <td><%= game.opponent || '-' %></td>
+                            <% game.hands.forEach((hand, handIndex) => { %>
+                                <td>
+                                    <% if (hand) { %>
+                                        <%
+                                            let displayScore = String(hand.score) + '`'.repeat(hand.bolters);
+                                            if (hand.isSquare > 0) displayScore = `[${displayScore}]`;
+                                            if (hand.isFlopper > 0) displayScore = `{${displayScore}}`;
+                                            handTotals[handIndex] += hand.score;
+                                            handCounts[handIndex]++;
+                                        %>
+                                        <%= displayScore %>
+                                    <% } else { %>
+                                        -
+                                    <% } %>
+                                </td>
+                            <% }) %>
+                            <td><strong><%= game.totalPins %><% if (game.bolters > 0) { %><sup><%= game.bolters %></sup><% } %></strong></td>
                         </tr>
+                        <% seasonTotal += game.totalPins; %>
                     <% }) %>
                 </tbody>
+                <tfoot>
+                    <tr>
+                        <th scope="row" colspan="2">Average</th>
+                        <% for (let handIndex = 0; handIndex < handTotals.length; handIndex++) { %>
+                            <td><%= handCounts[handIndex] ? (handTotals[handIndex] / handCounts[handIndex]).toFixed(2) : '-' %></td>
+                        <% } %>
+                        <td><strong><%= (seasonTotal / games.length).toFixed(2) %></strong></td>
+                    </tr>
+                </tfoot>
             </table>
         <% } else { %>
-            <p class="muted">No individual hand scores are available for this season.</p>
+            <p class="muted">No game scores are available for this season.</p>
         <% } %>
     </section>
 
