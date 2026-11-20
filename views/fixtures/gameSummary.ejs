@@ -52,16 +52,17 @@
             </form>
         <% } %>
 
-        <% const canSecretaryFinalise = user && (user.access === 'LeagueSecretary' || user.access === 'dev'); %>
-        <% if (canSecretaryFinalise) { %>
-            <form action="/fixtures/scorecard/confirm" method="post">
-                <input type="hidden" name="gameid" value="<%= gameInfo.id %>">
-                <button type="submit">Finalise scores without captain approvals</button>
-            </form>
-        <% } %>
     </div>
 <% } else if (approval && approval.status === 'Confirmed') { %>
     <p class="confirmed-score-status">Scores confirmed by the league.</p>
+<% } %>
+<% if (typeof canFinaliseScores !== 'undefined' && canFinaliseScores) { %>
+    <div style="margin: 20px 0; text-align: center;">
+        <form action="/fixtures/scorecard/confirm" method="post">
+            <input type="hidden" name="gameid" value="<%= gameInfo.id %>">
+            <button type="submit">Finalise scores without captain approvals</button>
+        </form>
+    </div>
 <% } %>
 <div>
     <nav>

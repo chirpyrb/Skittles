@@ -420,6 +420,13 @@ router.get('/scorecard', requireRegisteredUser, async (req, res) => {
 
         const approval = await fixture.getFixtureApprovalStatus(req.query.gameid)
         const user = req.session.user || req.user
+        const submittedTeamIds = new Set(
+            (submittedScores || []).map(entry => String(entry.Team))
+        )
+        const canFinaliseScores = ['dev', 'LeagueSecretary'].includes(user && user.access) &&
+            submittedTeamIds.has(String(gameInfo.homeTeamID)) &&
+            submittedTeamIds.has(String(gameInfo.awayTeamID)) &&
+            approval && approval.status !== 'Confirmed'
         let canEnterGame = false
         for (const teamId of [gameInfo.homeTeamID, gameInfo.awayTeamID]) {
             if (await canManageTeam(user, gameInfo, teamId) &&
@@ -434,6 +441,7 @@ router.get('/scorecard', requireRegisteredUser, async (req, res) => {
             scores: groupedScores,
             approval,
             canEnterGame,
+            canFinaliseScores,
             canEditSubmittedScorecard: canEditSubmittedScorecard(user)
         })
     } else {

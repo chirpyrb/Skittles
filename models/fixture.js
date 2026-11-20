@@ -712,11 +712,25 @@ async function confirmFixture(fixtureId) {
     await SQ3.execute(SQ3.db, 'UPDATE Fixtures SET status = "Confirmed" WHERE id = ?', [fixtureId])
 }
 
-// Allow an authorised league secretary to finalise provisional scores without captain approvals.
+// Allow an authorised league secretary to finalise submitted scores without captain approvals.
 async function finaliseFixture(fixtureId) {
     const fixtureInfo = await getFixtureInfo(fixtureId)
-    if (!fixtureInfo || fixtureInfo.status !== 'Provisional') {
-        throw new Error('Only provisional scores can be finalised.')
+    if (!fixtureInfo) {
+        throw new Error('Fixture not found.')
+    }
+    if (fixtureInfo.status === 'Confirmed') {
+        return
+    }
+    if (!['In Progress', 'Provisional', 'Completed'].includes(fixtureInfo.status)) {
+        throw new Error('Only submitted scorecards can be finalised.')
+    }
+    const submission = await SQ3.fetchFirst(SQ3.db, `
+        SELECT COUNT(DISTINCT teamId) AS submittedTeamCount
+        FROM Scorecards
+        WHERE fixtureId = ? AND teamId IN (?, ?)`,
+        [fixtureId, fixtureInfo.homeTeamID, fixtureInfo.awayTeamID])
+    if (!submission || submission.submittedTeamCount !== 2) {
+        throw new Error('Both teams must submit a completed scorecard before finalising.')
     }
     await SQ3.execute(SQ3.db, 'UPDATE Fixtures SET status = "Confirmed" WHERE id = ?', [fixtureId])
 }
