@@ -1,17 +1,23 @@
 <div class="scorecard-container" data-resume-hand="<%= resumeHand || 1 %>" data-current-team-id="<%= currentTeamId || '' %>">
+    <h1 class="scorecard-team-name">
+        <%= String(currentTeamId) === String(fixtureInfo.homeTeamID) ? fixtureInfo.homeTeam : fixtureInfo.awayTeam %>
+    </h1>
     <!-- Stepper Header -->
     <div class="stepper-bar">
         <% for (let h = 1; h <= 7; h++) { %>
-            <div class="step-pill <%= h === (resumeHand || 1) ? 'active' : '' %>" id="pill-<%= h - 1 %>">Hand <%= h %></div>
+            <div class="step-pill hand-identifier <%= h === (resumeHand || 1) ? 'active' : '' %>" id="pill-<%= h - 1 %>">Hand <%= h %></div>
         <% } %>
         <div class="step-pill" id="pill-7">Summary</div>
     </div>
 
-    <div class="live-hand-totals" aria-label="Live totals by hand">
-        <strong class="live-hand-totals-title">Totals by hand</strong>
+    <div class="live-hand-totals" aria-label="Live totals by hand" aria-live="polite">
+        <strong class="live-hand-totals-title">
+            Totals by hand
+            <span id="live-score-status" style="font-size: 0.75em; font-weight: normal;">Connecting...</span>
+        </strong>
         <% for (let h = 1; h <= 7; h++) { %>
             <div class="live-hand-total">
-                <span>H<%= h %></span>
+                <span class="hand-identifier">H<%= h %></span>
                 <% const homeTeamTotal = teamHandTotals && teamHandTotals[fixtureInfo.homeTeamID] ? teamHandTotals[fixtureInfo.homeTeamID].hands[h - 1] : 0; %>
                 <% const awayTeamTotal = teamHandTotals && teamHandTotals[fixtureInfo.awayTeamID] ? teamHandTotals[fixtureInfo.awayTeamID].hands[h - 1] : 0; %>
                 <strong class="live-hand-total-value">
@@ -37,11 +43,30 @@
         </div>
     </div>
 
+    <% if (canCorrectTeamSheet || canSubstitute) { %>
+        <p id="team-sheet-edit-control" style="text-align: center; margin: 14px 0;">
+            <% if (canCorrectTeamSheet) { %>
+                <a class="btn-card btn-secondary" href="/fixtures/scorecard/new/team?gameid=<%= fixtureInfo.id %>&teamId=<%= currentTeamId %>&mode=correct">
+                    Correct team sheet
+                </a>
+            <% } %>
+            <% if (canSubstitute) { %>
+                <a id="substitution-control" class="btn-card btn-secondary" href="/fixtures/scorecard/new/team?gameid=<%= fixtureInfo.id %>&teamId=<%= currentTeamId %>&mode=substitute">
+                    Record a substitution
+                </a>
+            <% } %>
+        </p>
+    <% } %>
+    <% if (!canSubmit) { %>
+        <p style="text-align: center;">Only the team captain or team secretary may submit this scorecard.</p>
+    <% } %>
     <form id="scorecardForm" action="/fixtures/scorecard" method="post">
+        <input type="hidden" name="gameid" value="<%= fixtureInfo.id %>">
+        <input type="hidden" name="teamId" value="<%= currentTeamId %>">
         <% for (let h = 1; h <= 7; h++) { %>
             <div id="Hand-<%= h %>" class="step <%= h === (resumeHand || 1) ? 'active' : '' %>">
                 <div class="hand-header-card">
-                    <h2>Hand <%= h %></h2>
+                    <h2 class="hand-identifier">Hand <%= h %></h2>
                     <span style="font-size: 0.9em; opacity: 0.85;">Enter scores for all 8 players</span>
                 </div>
                 
@@ -59,7 +84,7 @@
                     </thead>
                     <tbody>
                         <% for (let i = 0; i < 8; i++) { %>
-                            <%- include('scorecard/_handEntry.ejs', { handNumber: h, player: players[i] || { alias: 'Empty' }, playerIndex: i, savedScores: savedScores }) %>
+                            <%- include('scorecard/_handEntry.ejs', { handNumber: h, player: playersByHand[h][i] || { alias: 'Empty' }, playerIndex: i, savedScores: savedScores }) %>
                         <% } %>
                     </tbody>
                 </table>
@@ -91,7 +116,11 @@
         <div class="card-button-container">
             <button type="button" class="btn-card btn-secondary previous">&larr; Previous</button>
             <button type="button" class="btn-card btn-primary next">Next Hand &rarr;</button>
-            <button type="submit" class="btn-card btn-success submit-btn" style="display: none;">Submit Scorecard &#10003;</button>
+            <% if (canSubmit) { %>
+                <button type="submit" class="btn-card btn-success submit-btn" style="display: none;">Submit Scorecard &#10003;</button>
+            <% } else { %>
+                <span class="submit-btn" style="display: none;">Only the team captain or team secretary may submit this scorecard.</span>
+            <% } %>
         </div>
     </form>
 </div>
@@ -106,9 +135,13 @@
         const handScoreTotals = form.querySelectorAll('.input.score');
         const handBolterTotals = form.querySelectorAll('.input.bolters');
         const eventInputs = form.querySelectorAll('.input.event');
-        const scoreEmbellishments = form.querySelectorAll('scoreEmbellishment');
         const saveTimers = new Map();
+        const dirtyEntries = new Set();
         const stepPills = scorecardContainer.querySelectorAll('.step-pill');
+        const fixtureId = form.querySelector('input[name="gameid"]').value;
+        const currentTeamId = scorecardContainer.dataset.currentTeamId;
+        const liveScoreStatus = document.getElementById('live-score-status');
+        let refreshingLiveTotals = false;
 
         const resumeHand = parseInt(form.closest('.scorecard-container').dataset.resumeHand, 10) || 1;
         let currentStep = Math.min(Math.max(resumeHand - 1, 0), steps.length - 1);
@@ -116,6 +149,28 @@
         updateButtons();
         updateAllPlayerTotals();
         updateAllHandTotals();
+        for (let handNumber = 1; handNumber <= 7; handNumber++) {
+            for (let playerIndex = 0; playerIndex < 8; playerIndex++) {
+                updateScoreHighlight(handNumber, playerIndex);
+            }
+        }
+        recordHandStarted(currentStep).catch(error => console.error('Unable to record started hand:', error));
+        refreshLiveHandTotals();
+        setInterval(refreshLiveHandTotals, 2000);
+
+        document.querySelectorAll('#team-sheet-edit-control a').forEach(link => {
+            link.addEventListener('click', event => {
+                event.preventDefault();
+                const handUpdate = currentStep <= 6 ? recordHandStarted(currentStep) : Promise.resolve(null);
+                handUpdate.then(response => {
+                    if (response && !response.ok) throw new Error('Unable to record the started hand.');
+                    window.location.assign(link.href);
+                }).catch(error => {
+                    console.error('Unable to update team sheet:', error);
+                    window.alert('Unable to update the team sheet. Please try again.');
+                });
+            });
+        });
 
         nextButton.addEventListener('click', () => {
             if (validateForm()) {
@@ -147,6 +202,7 @@
 
         handScoreTotals.forEach(handScoreTotal => {
             handScoreTotal.addEventListener('input', () => {
+                markEntryDirty(handScoreTotal);
                 updateHandTotal(handScoreTotal);
                 updateAllPlayerTotals();
                 updateAllHandTotals();
@@ -159,6 +215,7 @@
 
         handBolterTotals.forEach(handBolterTotal => {
             handBolterTotal.addEventListener('input', () => {
+                markEntryDirty(handBolterTotal);
                 updateHandTotal(handBolterTotal);
                 updateAllPlayerTotals();
                 updateAllHandTotals();
@@ -170,8 +227,34 @@
         });
 
         eventInputs.forEach(eventInput => {
-            eventInput.addEventListener('change', () => saveEntry(eventInput));
+            eventInput.addEventListener('change', () => {
+                markEntryDirty(eventInput);
+                const hand = Number(eventInput.className.match(/hand-(\d+)/)[1]);
+                const playerIndex = Number(eventInput.className.match(/player-(\d+)/)[1]);
+                updateScoreHighlight(hand, playerIndex);
+                saveEntry(eventInput);
+            });
         });
+
+        function updateScoreHighlight(handNumber, playerIndex) {
+            const scoreInput = document.getElementById(`score${handNumber}_${playerIndex}`);
+            const flopperInput = document.getElementById(`flopper${handNumber}_${playerIndex}`);
+            const squareInput = document.getElementById(`square${handNumber}_${playerIndex}`);
+            if (!scoreInput) return;
+            scoreInput.classList.toggle('score-square', !!squareInput && squareInput.checked);
+            scoreInput.classList.toggle('score-flopper', !!flopperInput && flopperInput.checked);
+        }
+
+        function entryKey(inputElement) {
+            const hand = inputElement.className.match(/hand-(\d+)/);
+            const position = inputElement.className.match(/player-(\d+)/);
+            return hand && position ? `${hand[1]}_${position[1]}` : null;
+        }
+
+        function markEntryDirty(inputElement) {
+            const key = entryKey(inputElement);
+            if (key) dirtyEntries.add(key);
+        }
 
         async function saveEntry(inputElement) {
             const handNumberMatch = inputElement.className.match(/hand-(\d+)/);
@@ -179,6 +262,8 @@
             const playerIndexMatch = inputElement.className.match(/player-(\d+)/);
             const playerIndex = playerIndexMatch ? playerIndexMatch[1] : null;
             if (playerIndex === null || handNumber === null) return;
+            const key = `${handNumber}_${playerIndex}`;
+            dirtyEntries.add(key);
 
             const scoreInput = document.getElementById(`score${handNumber}_${playerIndex}`);
             const boltersInput = document.getElementById(`bolters${handNumber}_${playerIndex}`);
@@ -197,13 +282,65 @@
             };
 
             try {
-                fetch('/fixtures/scorecard/entry', {
+                const response = await fetch('/fixtures/scorecard/entry', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     keepalive: true,
                     body: JSON.stringify(data)
                 });
-            } catch (e) { console.error("Error submitting entry:", e); }
+                if (!response.ok) throw new Error(`Score save failed (${response.status}).`);
+                dirtyEntries.delete(key);
+            } catch (error) {
+                console.error('Error submitting entry:', error);
+            }
+        }
+
+        async function refreshLiveHandTotals() {
+            if (refreshingLiveTotals) return;
+            refreshingLiveTotals = true;
+            try {
+                const response = await fetch(
+                    `/fixtures/scorecard/live-totals?gameid=${encodeURIComponent(fixtureId)}&teamId=${encodeURIComponent(currentTeamId)}`
+                );
+                if (!response.ok) throw new Error(`Live score refresh failed (${response.status}).`);
+                const liveData = await response.json();
+
+                for (const entry of liveData.entries || []) {
+                    const key = `${entry.hand}_${entry.position}`;
+                    if (dirtyEntries.has(key)) continue;
+                    const scoreInput = document.getElementById(`score${entry.hand}_${entry.position}`);
+                    const boltersInput = document.getElementById(`bolters${entry.hand}_${entry.position}`);
+                    if (scoreInput) scoreInput.value = entry.score;
+                    if (boltersInput) boltersInput.value = entry.bolters;
+                    for (const [field, value] of [
+                        ['flopper', entry.isFlopper],
+                        ['square', entry.isSquare],
+                        ['chance', entry.isChance]
+                    ]) {
+                        const checkbox = document.getElementById(`${field}${entry.hand}_${entry.position}`);
+                        if (checkbox) checkbox.checked = Boolean(value);
+                    }
+                    updateScoreHighlight(entry.hand, entry.position);
+                }
+
+                updateAllPlayerTotals();
+                updateAllHandTotals();
+                for (const [teamId, teamTotals] of Object.entries(liveData.teamHandTotals || {})) {
+                    if (String(teamId) === String(currentTeamId)) continue;
+                    teamTotals.hands.forEach((total, index) => {
+                        document.querySelectorAll(`[data-team-hand-total="${teamId}"][data-hand="${index + 1}"]`)
+                            .forEach(label => { label.textContent = total; });
+                    });
+                    document.querySelectorAll(`[data-team-grand-total="${teamId}"]`)
+                        .forEach(label => { label.textContent = teamTotals.grandTotal; });
+                }
+                liveScoreStatus.textContent = 'Live';
+            } catch (error) {
+                console.error('Unable to refresh live score totals:', error);
+                liveScoreStatus.textContent = 'Reconnecting...';
+            } finally {
+                refreshingLiveTotals = false;
+            }
         }
 
         function queueSaveEntry(inputElement) {
@@ -213,7 +350,14 @@
         }
 
         window.addEventListener('beforeunload', () => {
-            [...handScoreTotals, ...handBolterTotals].forEach(input => saveEntry(input));
+            const dirtyInputs = new Map();
+            [...handScoreTotals, ...handBolterTotals, ...eventInputs].forEach(input => {
+                const key = entryKey(input);
+                if (!key || !dirtyEntries.has(key)) return;
+                clearTimeout(saveTimers.get(input.id));
+                dirtyInputs.set(key, input);
+            });
+            dirtyInputs.forEach(input => saveEntry(input));
         });
 
         function validateForm() {
@@ -235,13 +379,27 @@
             currentStep = stepIndex;
             steps[currentStep].classList.add('active');
             updateButtons();
+            recordHandStarted(currentStep).catch(error => console.error('Unable to record started hand:', error));
 
             if (currentStep === steps.length - 1) {
                 populateSummaryTable();
             }
         }
 
+        function recordHandStarted(stepIndex) {
+            if (stepIndex < 0 || stepIndex > 6) return Promise.resolve(null);
+            return fetch('/fixtures/scorecard/hand', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ handNumber: stepIndex + 1 })
+            });
+        }
+
         function updateButtons() {
+            const teamSheetControl = document.getElementById('team-sheet-edit-control');
+            const substitutionControl = document.getElementById('substitution-control');
+            if (teamSheetControl) teamSheetControl.style.display = '';
+            if (substitutionControl) substitutionControl.style.display = currentStep >= 2 ? 'none' : '';
             stepPills.forEach((p, idx) => {
                 p.classList.remove('active');
                 if (idx < currentStep) p.classList.add('completed');
@@ -407,6 +565,8 @@
                         if (qVal) formattedScore = `[${formattedScore}]`;
                         if (fVal) formattedScore = `{${formattedScore}}`;
                         cell.textContent = formattedScore;
+                        cell.classList.toggle('score-square', !!qVal);
+                        cell.classList.toggle('score-flopper', !!fVal);
                     }
 
                     playerTotalScore += sVal;

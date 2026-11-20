@@ -156,6 +156,20 @@ const initSchema = async () => {
       isFlopper INTEGER DEFAULT 0, isSquare INTEGER DEFAULT 0, isChance INTEGER DEFAULT 0,
       FOREIGN KEY (fixtureId) REFERENCES Fixtures(id), FOREIGN KEY (teamId) REFERENCES Teams(id)
     );
+
+    CREATE TABLE IF NOT EXISTS FixtureTeamSheets (
+      fixtureId INTEGER NOT NULL, teamId INTEGER NOT NULL, playerIndex INTEGER NOT NULL,
+      playerId INTEGER, handFrom INTEGER NOT NULL,
+      PRIMARY KEY (fixtureId, teamId, playerIndex, handFrom),
+      FOREIGN KEY (fixtureId) REFERENCES Fixtures(id), FOREIGN KEY (teamId) REFERENCES Teams(id),
+      FOREIGN KEY (playerId) REFERENCES Players(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS FixtureTeamProgress (
+      fixtureId INTEGER NOT NULL, teamId INTEGER NOT NULL, startedHand INTEGER NOT NULL DEFAULT 1,
+      PRIMARY KEY (fixtureId, teamId),
+      FOREIGN KEY (fixtureId) REFERENCES Fixtures(id), FOREIGN KEY (teamId) REFERENCES Teams(id)
+    );
   `)
 
   const addColumn = async (table, column, definition) => {

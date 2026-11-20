@@ -51,8 +51,17 @@ async function getScorecardsForFixture(fixtureId) {
         WHERE Scorecards.fixtureId = ?`, [fixtureId])
 }
 
+// Check whether a team has already submitted scorecard rows for a fixture.
+async function hasTeamSubmittedScorecard(fixtureId, teamId) {
+    const submission = await SQ3.fetchFirst(SQ3.db,
+        'SELECT id FROM Scorecards WHERE fixtureId = ? AND teamId = ? LIMIT 1',
+        [fixtureId, teamId])
+    return !!submission
+}
+
 module.exports = {
     initTable,
     saveFinalScores,
-    getScorecardsForFixture
+    getScorecardsForFixture,
+    hasTeamSubmittedScorecard
 }

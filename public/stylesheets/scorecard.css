@@ -19,6 +19,13 @@
     font-family: Arial, Helvetica, sans-serif;
 }
 
+.scorecard-team-name {
+    margin: 0 0 14px;
+    color: var(--text-dark);
+    text-align: center;
+    font-size: 1.75em;
+}
+
 /* Stepper Header */
 .stepper-bar {
     display: flex;
@@ -52,6 +59,14 @@
     box-shadow: var(--shadow-sm);
 }
 
+.step-pill.hand-identifier {
+    color: #1d4ed8;
+}
+
+.step-pill.hand-identifier.active {
+    color: #ffffff;
+}
+
 .step-pill.completed {
     color: var(--success-color);
 }
@@ -81,6 +96,11 @@
     text-align: center;
     border-left: 1px solid var(--border-color);
     white-space: nowrap;
+}
+
+.live-hand-total > .hand-identifier {
+    color: #1d4ed8;
+    font-weight: 700;
 }
 
 .live-hand-total-value {
@@ -128,6 +148,10 @@
     margin: 0;
     font-size: 1.4em;
     font-weight: 700;
+}
+
+.hand-header-card h2.hand-identifier {
+    color: #fde047;
 }
 
 /* Player Table Header & Rows */
@@ -203,6 +227,18 @@
     border-radius: 8px;
     outline: none;
     transition: all 0.2s ease;
+}
+
+.score-input-field.score-square,
+#summaryTableBody td.score-square,
+.match-scorecard-table td.score-square {
+    background-color: #dcfce7;
+}
+
+.score-input-field.score-flopper,
+#summaryTableBody td.score-flopper,
+.match-scorecard-table td.score-flopper {
+    background-color: #dbeafe;
 }
 
 .score-input-field:focus {

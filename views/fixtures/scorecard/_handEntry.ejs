@@ -11,7 +11,7 @@
         </div>
     </td>
     <td style="text-align: center;">
-        <input type="number" min="0" max="27" class="score-input-field input score hand-<%= handNumber %> player-<%= playerIndex %>"
+        <input type="number" min="0" max="27" class="score-input-field input score hand-<%= handNumber %> player-<%= playerIndex %> <%= savedEntry.isSquare ? 'score-square' : '' %> <%= savedEntry.isFlopper ? 'score-flopper' : '' %>"
             name="score<%= handNumber %>_<%= playerIndex %>" id="score<%= handNumber %>_<%= playerIndex %>" placeholder="0"
             value="<%= savedEntry.Score ?? '' %>">
     </td>

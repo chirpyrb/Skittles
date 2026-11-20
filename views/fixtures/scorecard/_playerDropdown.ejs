@@ -1,4 +1,4 @@
 <option label="<select player>" value="null"></option>
 <% playerList.forEach(player => {%>
-    <option label="<%=player.alias%>" value="<%=player.id%>"></option>
+    <option label="<%=player.alias%>" value="<%=player.id%>" <%= String(selectedPlayerId) === String(player.id) ? 'selected' : '' %>><%=player.alias%></option>
 <%})%>

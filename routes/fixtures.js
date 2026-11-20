@@ -21,23 +21,169 @@ function isLeagueSecretary(user) {
     return user && (user.access === 'LeagueSecretary' || user.access === 'dev')
 }
 
-function isCaptainForFixture(user, fixtureInfo) {
-    return !!fixtureInfo && !!user && (
-        fixtureInfo.homeCaptainId === user.id ||
-        fixtureInfo.awayCaptainId === user.id ||
-        user.access === 'TeamCaptain' && (String(user.Team) === String(fixtureInfo.homeTeamID) || String(user.Team) === String(fixtureInfo.awayTeamID))
-    )
+async function isTeamMember(user, teamId) {
+    if (!user || !teamId) return false
+    const linkedPlayer = await auth.getPlayerForUser(user.userName)
+    return !!linkedPlayer && String(linkedPlayer.team) === String(teamId)
 }
 
-function canManageScorecard(user, fixtureInfo) {
-    return isLeagueSecretary(user) || isCaptainForFixture(user, fixtureInfo)
-}
-
-function canManageTeam(user, fixtureInfo, teamId) {
-    if (isLeagueSecretary(user)) return true
+function isCaptainForTeam(user, fixtureInfo, teamId) {
     if (!fixtureInfo || !user) return false
-    return String(teamId) === String(fixtureInfo.homeTeamID) && fixtureInfo.homeCaptainId === user.id ||
-        String(teamId) === String(fixtureInfo.awayTeamID) && fixtureInfo.awayCaptainId === user.id
+    return String(teamId) === String(fixtureInfo.homeTeamID) && String(fixtureInfo.homeCaptainId) === String(user.id) ||
+        String(teamId) === String(fixtureInfo.awayTeamID) && String(fixtureInfo.awayCaptainId) === String(user.id) ||
+        user.access === 'TeamCaptain' && String(user.Team) === String(teamId)
+}
+
+async function canManageTeam(user, fixtureInfo, teamId) {
+    if (isLeagueSecretary(user)) return true
+    if (!fixtureInfo || !user ||
+        String(teamId) !== String(fixtureInfo.homeTeamID) && String(teamId) !== String(fixtureInfo.awayTeamID)) return false
+    return isCaptainForTeam(user, fixtureInfo, teamId) || await isTeamMember(user, teamId)
+}
+
+function rosterFromScoreRows(scoreRows, maxHand, mostRecentFirst) {
+    const sortedScores = (scoreRows || [])
+        .filter(entry => Number(entry.Hand) <= maxHand)
+        .sort((first, second) => mostRecentFirst
+            ? Number(second.Hand) - Number(first.Hand)
+            : Number(first.Hand) - Number(second.Hand))
+    const playersByPosition = new Map()
+    for (const entry of sortedScores) {
+        const position = Number(entry.Position)
+        if (position >= 0 && position < 8 && !playersByPosition.has(position)) {
+            playersByPosition.set(position, entry.Player || null)
+        }
+    }
+    return Array.from({ length: 8 }, (_, playerIndex) => ({
+        playerIndex,
+        playerId: playersByPosition.get(playerIndex) || null
+    }))
+}
+
+async function getTeamStartedHand(fixtureId, teamId) {
+    let startedHand = await fixture.getFixtureTeamProgress(fixtureId, teamId)
+    const temporaryScores = await fixture.getAllScoresForFixture(fixtureId)
+    const submittedScores = await scorecard.getScorecardsForFixture(fixtureId)
+    const teamTemporaryScores = (temporaryScores || []).filter(entry => String(entry.Team) === String(teamId))
+    const teamSubmittedScores = (submittedScores || []).filter(entry => String(entry.Team) === String(teamId))
+    const teamScores = [...teamTemporaryScores, ...teamSubmittedScores]
+
+    if (startedHand === 7 && teamSubmittedScores.length === 0) {
+        const meaningfulHand = teamTemporaryScores.reduce((highestHand, entry) => {
+            const hasScoreData = (Number(entry.Score) || 0) > 0 ||
+                (Number(entry.Bolters) || 0) > 0 ||
+                (Number(entry.isFlopper) || 0) > 0 ||
+                (Number(entry.isSquare) || 0) > 0 ||
+                (Number(entry.isChance) || 0) > 0
+            return hasScoreData ? Math.max(highestHand, Number(entry.Hand) || 0) : highestHand
+        }, 0)
+        const firstBlankHand = Math.max(1, meaningfulHand + 1)
+        const hasBlankTail = meaningfulHand < 7 &&
+            Array.from({ length: 8 - firstBlankHand }, (_, index) => firstBlankHand + index)
+                .every(handNumber => {
+                    const handEntries = teamTemporaryScores.filter(entry => Number(entry.Hand) === handNumber)
+                    return handEntries.length === 8 && handEntries.every(entry =>
+                        (Number(entry.Score) || 0) === 0 &&
+                        (Number(entry.Bolters) || 0) === 0 &&
+                        (Number(entry.isFlopper) || 0) === 0 &&
+                        (Number(entry.isSquare) || 0) === 0 &&
+                        (Number(entry.isChance) || 0) === 0)
+                })
+
+        if (hasBlankTail) {
+            startedHand = Math.max(1, meaningfulHand)
+            await fixture.clearBlankTempScoresAfterHand(fixtureId, teamId, startedHand)
+            await fixture.setFixtureTeamProgress(fixtureId, teamId, startedHand)
+            return startedHand
+        }
+    }
+
+    for (const entry of teamScores) {
+        if (String(entry.Team) === String(teamId)) {
+            startedHand = Math.max(startedHand, Number(entry.Hand) || 0)
+        }
+    }
+    return startedHand
+}
+
+async function canSubmitTeamScorecard(user, fixtureInfo, teamId) {
+    if (user && user.access === 'dev') return true
+    if (isCaptainForTeam(user, fixtureInfo, teamId)) return true
+    return user && ['TeamSecretary', 'TeamSecratary'].includes(user.access) && await isTeamMember(user, teamId)
+}
+
+function canEditSubmittedScorecard(user) {
+    return isLeagueSecretary(user)
+}
+
+async function renderTeamScorecard(req, res, fixtureInfo, teamId) {
+    const user = req.session.user
+    if (!await canManageTeam(user, fixtureInfo, teamId)) {
+        return res.status(403).send('You cannot enter scores for this team.')
+    }
+
+    const isSubmitted = await scorecard.hasTeamSubmittedScorecard(fixtureInfo.id, teamId)
+    if (isSubmitted && !canEditSubmittedScorecard(user)) {
+        return res.status(403).send('Only the league secretary or a developer can edit a submitted scorecard.')
+    }
+
+    req.session.user.gamesInProgress = fixtureInfo.id
+    req.session.user.Team = teamId
+    const allSavedScores = await fixture.getTempScoresForUser(fixtureInfo.id, user.id)
+    let savedScores = (allSavedScores || []).filter(entry => String(entry.Team) === String(teamId))
+    const submittedScores = await scorecard.getScorecardsForFixture(fixtureInfo.id)
+    const mergedScores = new Map(savedScores.map(entry => [`${entry.Team}_${entry.Position}_${entry.Hand}`, entry]))
+    for (const entry of (submittedScores || []).filter(item => String(item.Team) === String(teamId))) {
+        mergedScores.set(`${entry.Team}_${entry.Position}_${entry.Hand}`, {
+                Hand: entry.Hand,
+                Team: entry.Team,
+                Player: entry.Player,
+                Position: entry.Position,
+                Score: entry.Score,
+                Bolters: entry.Bolters,
+                isFlopper: entry.isFlopper,
+                isSquare: entry.isSquare,
+                isChance: entry.isChance
+        })
+    }
+    savedScores = Array.from(mergedScores.values())
+
+    const startedHand = await getTeamStartedHand(fixtureInfo.id, teamId)
+    const resumeHand = 1
+    await fixture.markFixtureTeamHandStarted(fixtureInfo.id, teamId, startedHand)
+    const allPlayers = await player.getPlayerListForTeam(teamId)
+    const playersByHand = {}
+    for (let handNumber = 1; handNumber <= 7; handNumber++) {
+        const sheet = await fixture.getFixtureTeamSheet(fixtureInfo.id, teamId, handNumber)
+        playersByHand[handNumber] = Array.from({ length: 8 }, (_, playerIndex) => {
+            const savedEntry = savedScores.find(entry =>
+                Number(entry.Hand) === handNumber && Number(entry.Position) === playerIndex && entry.Player)
+            const sheetEntry = sheet.find(entry => Number(entry.playerIndex) === playerIndex)
+            const playerId = sheet.length ? (sheetEntry || {}).playerId : savedEntry && savedEntry.Player
+            return allPlayers.find(currentPlayer => String(currentPlayer.id) === String(playerId)) || { alias: 'Empty' }
+        })
+    }
+
+    const currentSheet = await fixture.getFixtureTeamSheet(fixtureInfo.id, teamId, resumeHand)
+    if (currentSheet.length === 0) {
+        return res.redirect(`/fixtures/scorecard/new/team?gameid=${fixtureInfo.id}&teamId=${teamId}`)
+    }
+
+    const teamHandTotals = await getTeamHandTotals(fixtureInfo.id, fixtureInfo)
+    const canSubmit = await canSubmitTeamScorecard(user, fixtureInfo, teamId)
+    return res.render('fixtures/scorecard', {
+        fixtureInfo,
+        players: playersByHand[resumeHand],
+        playersByHand,
+        savedScores,
+        resumeHand,
+        teamHandTotals,
+        currentTeamId: teamId,
+        canSubmit,
+        canCorrectTeamSheet: !isSubmitted,
+        canSubstitute: startedHand < 3 && !isSubmitted,
+        user
+    })
 }
 
 async function getTeamHandTotals(fixtureId, fixtureInfo) {
@@ -126,6 +272,46 @@ router.get('/live-scores', requireRegisteredUser, async (req, res) => {
     }
 })
 
+router.get('/scorecard/live-totals', requireRegisteredUser, async (req, res) => {
+    try {
+        const fixtureInfo = await fixture.getFixtureInfo(req.query.gameid)
+        const teamId = req.query.teamId
+        if (!fixtureInfo || !await canManageTeam(req.session.user, fixtureInfo, teamId)) {
+            return res.status(403).json({ error: 'You cannot view live scores for this fixture.' })
+        }
+
+        const temporaryScores = await fixture.getAllScoresForFixture(fixtureInfo.id)
+        const submittedScores = await scorecard.getScorecardsForFixture(fixtureInfo.id)
+        const scoresByEntry = new Map()
+        for (const entry of (temporaryScores || [])) {
+            scoresByEntry.set(`${entry.Team}_${entry.Position}_${entry.Hand}`, entry)
+        }
+        for (const entry of (submittedScores || [])) {
+            scoresByEntry.set(`${entry.Team}_${entry.Position}_${entry.Hand}`, entry)
+        }
+
+        const entries = Array.from(scoresByEntry.values())
+            .filter(entry => String(entry.Team) === String(teamId))
+            .map(entry => ({
+                hand: Number(entry.Hand),
+                position: Number(entry.Position),
+                score: Number(entry.Score) || 0,
+                bolters: Number(entry.Bolters) || 0,
+                isFlopper: Number(entry.isFlopper) || 0,
+                isSquare: Number(entry.isSquare) || 0,
+                isChance: Number(entry.isChance) || 0
+            }))
+
+        return res.json({
+            teamHandTotals: await getTeamHandTotals(fixtureInfo.id, fixtureInfo),
+            entries
+        })
+    } catch (error) {
+        console.error('Unable to load live scorecard totals:', error)
+        return res.status(500).json({ error: 'Unable to load live scorecard totals.' })
+    }
+})
+
 router.get('/scorecard', requireRegisteredUser, async (req, res) => {
     if (req.query.gameid != null) {
         // Lookup the status of this game.
@@ -145,23 +331,33 @@ router.get('/scorecard', requireRegisteredUser, async (req, res) => {
         const allScores = Array.from(scoresByEntry.values())
 
         const playerScores = {};
+        const createPlayerScoreSummary = (teamId, teamName, position, playerId, playerName) => ({
+            teamId,
+            playerId,
+            teamName,
+            playerName,
+            Position: position,
+            hands: [0, 0, 0, 0, 0, 0, 0],
+            handBolters: [0, 0, 0, 0, 0, 0, 0],
+            handSquares: [false, false, false, false, false, false, false],
+            handFloppers: [false, false, false, false, false, false, false],
+            total: 0,
+            bolters: 0,
+            floppers: 0,
+            squares: 0,
+            chances: 0
+        })
+
         for (const s of (allScores || [])) {
-            const key = `${s.Team}_${s.Position}`;
+            const key = `${s.Team}_${s.Position}_${s.Player || 'empty'}`;
             if (!playerScores[key]) {
-                playerScores[key] = {
-                    teamName: s.teamName,
-                    playerName: s.playerName || 'Empty/Unknown',
-                    Position: s.Position,
-                    hands: [0, 0, 0, 0, 0, 0, 0],
-                    handBolters: [0, 0, 0, 0, 0, 0, 0],
-                    handSquares: [false, false, false, false, false, false, false],
-                    handFloppers: [false, false, false, false, false, false, false],
-                    total: 0,
-                    bolters: 0,
-                    floppers: 0,
-                    squares: 0,
-                    chances: 0
-                };
+                playerScores[key] = createPlayerScoreSummary(
+                    s.Team,
+                    s.teamName,
+                    s.Position,
+                    s.Player || null,
+                    s.playerName || 'Empty/Unknown'
+                )
             }
             const score = parseInt(s.Score) || 0;
             // Hands should be 1-indexed up to 7, check boundary just in case
@@ -178,6 +374,41 @@ router.get('/scorecard', requireRegisteredUser, async (req, res) => {
             playerScores[key].chances += parseInt(s.isChance) || 0;
         }
 
+        for (const teamId of [gameInfo.homeTeamID, gameInfo.awayTeamID]) {
+            const teamName = String(teamId) === String(gameInfo.homeTeamID) ? gameInfo.homeTeam : gameInfo.awayTeam
+            const rosterEntries = new Map()
+            for (let handNumber = 1; handNumber <= 7; handNumber++) {
+                const teamSheet = await fixture.getFixtureTeamSheet(req.query.gameid, teamId, handNumber)
+                for (const entry of teamSheet) {
+                    rosterEntries.set(`${entry.playerIndex}_${entry.playerId || 'empty'}`, entry)
+                }
+            }
+
+            if (rosterEntries.size === 0) {
+                const teamPlayers = await player.getPlayerListForTeam(teamId)
+                teamPlayers.forEach((teamPlayer, position) => {
+                    rosterEntries.set(`${position}_${teamPlayer.id}`, {
+                        playerIndex: position,
+                        playerId: teamPlayer.id,
+                        playerName: teamPlayer.alias
+                    })
+                })
+            }
+
+            const teamPlayers = await player.getPlayerListForTeam(teamId)
+            const playersById = new Map(teamPlayers.map(teamPlayer => [String(teamPlayer.id), teamPlayer]))
+            for (const entry of rosterEntries.values()) {
+                const playerId = entry.playerId || null
+                const playerName = playerId
+                    ? (playersById.get(String(playerId)) || {}).alias || 'Empty/Unknown'
+                    : 'Empty/Unknown'
+                const key = `${teamId}_${entry.playerIndex}_${playerId || 'empty'}`
+                if (!playerScores[key]) {
+                    playerScores[key] = createPlayerScoreSummary(teamId, teamName, entry.playerIndex, playerId, playerName)
+                }
+            }
+        }
+
         const groupedScores = Object.values(playerScores);
         // Sort by Team then Position
         groupedScores.sort((a, b) => {
@@ -188,7 +419,23 @@ router.get('/scorecard', requireRegisteredUser, async (req, res) => {
         });
 
         const approval = await fixture.getFixtureApprovalStatus(req.query.gameid)
-        res.render('fixtures/gameSummary', { gameInfo: gameInfo, user: req.session.user || req.user, scores: groupedScores, approval: approval })
+        const user = req.session.user || req.user
+        let canEnterGame = false
+        for (const teamId of [gameInfo.homeTeamID, gameInfo.awayTeamID]) {
+            if (await canManageTeam(user, gameInfo, teamId) &&
+                (!await scorecard.hasTeamSubmittedScorecard(req.query.gameid, teamId) || canEditSubmittedScorecard(user))) {
+                canEnterGame = true
+                break
+            }
+        }
+        res.render('fixtures/gameSummary', {
+            gameInfo,
+            user,
+            scores: groupedScores,
+            approval,
+            canEnterGame,
+            canEditSubmittedScorecard: canEditSubmittedScorecard(user)
+        })
     } else {
         res.send('Game ID error')
     }
@@ -345,95 +592,36 @@ router.get('/scorecard/new', async (req, res) => {
         return
     }
 
-    if (req.query.gameid && req.session.user.gamesInProgress &&
-        String(req.session.user.gamesInProgress) !== String(fixtureID)) {
-        req.session.teamSheet = null
-        req.session.user.gamesInProgress = fixtureID
-    }
-
     const fixtureInfo = await fixture.getFixtureInfo(fixtureID)
     if (!fixtureInfo) {
         res.redirect('/fixtures')
         return
     }
-    if (!canManageScorecard(req.session.user, fixtureInfo)) {
-        return res.status(403).send('Only captains or the league secretary can edit scorecards.')
-    }
-
-    if (!req.session.user.gamesInProgress) {
-        req.session.user.gamesInProgress = fixtureID
-        req.session.save()
-    }
-
-    const userid = req.session.user.id || 1
-    let savedScores = await fixture.getTempScoresForUser(fixtureID, userid)
-    if (savedScores.length > 0) {
-        req.session.user.Team = savedScores[0].Team
-    } else if (isLeagueSecretary(req.session.user)) {
-        req.session.user.Team = req.session.user.Team &&
-            (String(req.session.user.Team) === String(fixtureInfo.homeTeamID) || String(req.session.user.Team) === String(fixtureInfo.awayTeamID))
-            ? req.session.user.Team : fixtureInfo.homeTeamID
-    } else if (!canManageTeam(req.session.user, fixtureInfo, req.session.user.Team)) {
-        req.session.user.Team = fixtureInfo.homeCaptainId === req.session.user.id
-            ? fixtureInfo.homeTeamID : fixtureInfo.awayTeamID
-    }
-
-    if (savedScores.length === 0 && req.session.user.Team) {
-        const submittedScores = await scorecard.getScorecardsForFixture(fixtureID)
-        savedScores = (submittedScores || [])
-            .filter(entry => String(entry.Team) === String(req.session.user.Team))
-            .map(entry => ({
-                Hand: entry.Hand,
-                Team: entry.Team,
-                Player: entry.Player,
-                Position: entry.Position,
-                Score: entry.Score,
-                Bolters: entry.Bolters,
-                isFlopper: entry.isFlopper,
-                isSquare: entry.isSquare,
-                isChance: entry.isChance
-            }))
-    }
-    const resumeHand = savedScores.reduce((highestHand, savedScore) => {
-        return Math.max(highestHand, parseInt(savedScore.Hand) || 0)
-    }, 1)
-
-    if (!req.session.teamSheet) {
-        if (savedScores.length > 0) {
-            req.session.teamSheet = Array(8).fill('null')
-            savedScores.forEach(savedScore => {
-                if (savedScore.Position >= 0 && savedScore.Position < 8 && savedScore.Player) {
-                    req.session.teamSheet[savedScore.Position] = String(savedScore.Player)
+    const user = req.session.user
+    const teams = [fixtureInfo.homeTeamID, fixtureInfo.awayTeamID]
+    let targetTeamId = req.query.teamId ? Number(req.query.teamId) : Number(user.Team)
+    if (!teams.some(teamId => String(teamId) === String(targetTeamId)) ||
+        !await canManageTeam(user, fixtureInfo, targetTeamId)) {
+        const linkedPlayer = await auth.getPlayerForUser(user.userName)
+        targetTeamId = linkedPlayer && teams.some(teamId => String(teamId) === String(linkedPlayer.team))
+            ? linkedPlayer.team : null
+        if (!targetTeamId) {
+            for (const teamId of teams) {
+                if (await canManageTeam(user, fixtureInfo, teamId)) {
+                    targetTeamId = teamId
+                    break
                 }
-            })
-            req.session.user.Team = savedScores[0].Team
-            req.session.save()
-        } else {
-            res.redirect('/fixtures/scorecard/new/team')
-            return
+            }
         }
     }
 
-    if (!req.session.teamSheet) {
-        res.redirect('/fixtures/scorecard/new/team')
-        return
+    if (!targetTeamId || !await canManageTeam(user, fixtureInfo, targetTeamId)) {
+        return res.status(403).send('You are not a member of either team in this fixture.')
     }
-
-    const allPlayers = await player.getPlayerListForTeam(req.session.user.Team)
-    const mappedPlayers = req.session.teamSheet.map(id => {
-        if (id === 'null' || !id) return { alias: 'Empty' }
-        return allPlayers.find(p => p.id == id) || { alias: 'Unknown' }
-    })
-    const teamHandTotals = await getTeamHandTotals(fixtureID, fixtureInfo)
-
-    res.render('fixtures/scorecard', {
-        fixtureInfo: fixtureInfo,
-        players: mappedPlayers,
-        savedScores: savedScores,
-        resumeHand: resumeHand,
-        teamHandTotals: teamHandTotals,
-        currentTeamId: req.session.user.Team
-    })
+    if (String(req.session.user.gamesInProgress) !== String(fixtureID)) {
+        req.session.teamSheet = null
+    }
+    return renderTeamScorecard(req, res, fixtureInfo, targetTeamId)
 })
 
 router.get('/scorecard/new/team', async (req, res) => {
@@ -442,16 +630,15 @@ router.get('/scorecard/new/team', async (req, res) => {
         return
     }
 
-    if (req.session.user.gamesInProgress == null) {
+    const fixtureID = req.query.gameid || req.session.user.gamesInProgress
+    if (fixtureID == null) {
         res.redirect('/fixtures')
         return
     }
 
-    const fixtureID = req.session.user.gamesInProgress
     const fixtureInfo = await fixture.getFixtureInfo(fixtureID)
-    if (!canManageScorecard(req.session.user, fixtureInfo)) {
-        return res.status(403).send('Only captains or the league secretary can edit scorecards.')
-    }
+    if (!fixtureInfo) return res.status(404).send('Fixture not found.')
+    req.session.user.gamesInProgress = fixtureID
 
     let targetTeamId = null
     if (req.query.teamType === 'away') {
@@ -473,99 +660,137 @@ router.get('/scorecard/new/team', async (req, res) => {
         }
     }
 
-    if (!targetTeamId && fixtureInfo) {
-        targetTeamId = fixtureInfo.homeTeamID
+    if (!targetTeamId) {
+        targetTeamId = await canManageTeam(req.session.user, fixtureInfo, fixtureInfo.homeTeamID)
+            ? fixtureInfo.homeTeamID : fixtureInfo.awayTeamID
     }
-    if (!canManageTeam(req.session.user, fixtureInfo, targetTeamId)) {
+    if (!await canManageTeam(req.session.user, fixtureInfo, targetTeamId)) {
         return res.status(403).send('You cannot manage the selected team.')
     }
 
-    req.session.teamSheet = null
-
+    const isSubmitted = await scorecard.hasTeamSubmittedScorecard(fixtureID, targetTeamId)
+    const startedHand = await getTeamStartedHand(fixtureID, targetTeamId)
+    if (isSubmitted && !canEditSubmittedScorecard(req.session.user)) {
+        return res.status(403).send('Submitted scorecards can only be edited by the league secretary or a developer.')
+    }
+    const mode = req.query.mode === 'substitute' ? 'substitute' : 'correct'
+    if (mode === 'substitute' && (startedHand >= 3 || isSubmitted)) {
+        return res.status(403).send('A substitution cannot be made after the third hand has started.')
+    }
     req.session.user.Team = targetTeamId
+    let existingSheet = await fixture.getFixtureTeamSheet(
+        fixtureID,
+        targetTeamId,
+        mode === 'substitute' ? startedHand : 1
+    )
+    if (existingSheet.length === 0) {
+        const temporaryScores = await fixture.getAllScoresForFixture(fixtureID)
+        const submittedScores = await scorecard.getScorecardsForFixture(fixtureID)
+        const teamScores = [
+            ...(temporaryScores || []),
+            ...(submittedScores || []).map(entry => ({
+                Hand: entry.Hand,
+                Team: entry.Team,
+                Position: entry.Position,
+                Player: entry.Player
+            }))
+        ].filter(entry => String(entry.Team) === String(targetTeamId))
+        existingSheet = rosterFromScoreRows(teamScores, mode === 'substitute' ? startedHand : 1, mode === 'substitute')
+    }
+    req.session.teamSheet = Array.from({ length: 8 }, (_, position) => {
+        const entry = existingSheet.find(sheetEntry => Number(sheetEntry.playerIndex) === position)
+        return entry && entry.playerId ? String(entry.playerId) : 'null'
+    })
+    req.session.teamSheetTeamId = String(targetTeamId)
     req.session.save()
 
-    let teamList = targetTeamId ? await player.getPlayerListForTeam(targetTeamId) : []
-    if ((!teamList || teamList.length === 0) && fixtureInfo) {
-        teamList = await player.getPlayerListForTeam(fixtureInfo.homeTeamID)
-        if (!teamList || teamList.length === 0) {
-            teamList = await player.getPlayerListForTeam(fixtureInfo.awayTeamID)
-        }
+    const teamList = await player.getPlayerListForTeam(targetTeamId)
+    const selectableTeams = []
+    for (const teamId of [fixtureInfo.homeTeamID, fixtureInfo.awayTeamID]) {
+        if (await canManageTeam(req.session.user, fixtureInfo, teamId)) selectableTeams.push(String(teamId))
     }
 
-    res.render('fixtures/scorecard/setTeam', { playerList: teamList, fixtureInfo: fixtureInfo, targetTeamId: targetTeamId, user: req.session.user })
+    res.render('fixtures/scorecard/setTeam', {
+        playerList: teamList,
+        fixtureInfo,
+        targetTeamId,
+        teamSheet: req.session.teamSheet,
+        handFrom: mode === 'substitute' && existingSheet.length ? startedHand + 1 : 1,
+        mode,
+        selectableTeams,
+        user: req.session.user
+    })
 })
 
 router.post('/scorecard/new/team', async (req, res) => {
     if (!req.session.user) return res.redirect('/users/login')
-    const fixtureID = req.session.user.gamesInProgress
+    const fixtureID = req.body.gameid || req.session.user.gamesInProgress
     const fixtureInfo = await fixture.getFixtureInfo(fixtureID)
-    let targetTeamId = req.session.user.Team
-    if (!canManageTeam(req.session.user, fixtureInfo, targetTeamId)) {
+    const targetTeamId = Number(req.body.teamId || req.session.user.Team)
+    if (!fixtureInfo || !await canManageTeam(req.session.user, fixtureInfo, targetTeamId)) {
         return res.status(403).send('You cannot manage the selected team.')
     }
-    req.session.teamSheet = req.body.player
+    const startedHand = await getTeamStartedHand(fixtureID, targetTeamId)
+    const isSubmitted = await scorecard.hasTeamSubmittedScorecard(fixtureID, targetTeamId)
+    const mode = req.body.mode === 'substitute' ? 'substitute' : 'correct'
+    if (mode === 'substitute' && (startedHand >= 3 || isSubmitted)) {
+        return res.status(403).send('A substitution cannot be made after the third hand has started.')
+    }
+    if (isSubmitted && !canEditSubmittedScorecard(req.session.user)) {
+        return res.status(403).send('Submitted scorecards can only be edited by the league secretary or a developer.')
+    }
+
+    const submittedPlayers = Array.isArray(req.body.player) ? req.body.player : [req.body.player]
+    if (submittedPlayers.length !== 8) {
+        return res.status(400).send('Select exactly eight player positions.')
+    }
+    const teamPlayers = await player.getPlayerListForTeam(targetTeamId)
+    const allowedPlayerIds = new Set(teamPlayers.map(currentPlayer => String(currentPlayer.id)))
+    const normalizedPlayers = submittedPlayers.map(playerId =>
+        !playerId || playerId === 'null' ? null : Number(playerId))
+    if (normalizedPlayers.some(playerId => playerId !== null &&
+        (!Number.isInteger(playerId) || !allowedPlayerIds.has(String(playerId)))) ||
+        normalizedPlayers.filter(Boolean).length !== new Set(normalizedPlayers.filter(Boolean)).size) {
+        return res.status(400).send('Each selected player must be an approved member of this team and appear only once.')
+    }
+
+    let existingSheet = await fixture.getFixtureTeamSheet(
+        fixtureID,
+        targetTeamId,
+        mode === 'substitute' ? startedHand : 1
+    )
+    const temporaryScores = await fixture.getAllScoresForFixture(fixtureID)
+    const submittedScores = await scorecard.getScorecardsForFixture(fixtureID)
+    const teamScores = [
+        ...(temporaryScores || []),
+        ...(submittedScores || []).map(entry => ({
+            Hand: entry.Hand,
+            Team: entry.Team,
+            Position: entry.Position,
+            Player: entry.Player
+        }))
+    ].filter(entry => String(entry.Team) === String(targetTeamId))
+    if (existingSheet.length === 0 && mode === 'substitute' && teamScores.length > 0) {
+        const initialRoster = rosterFromScoreRows(teamScores, 1, false).map(entry => entry.playerId)
+        await fixture.saveFixtureTeamSheet(fixtureID, targetTeamId, initialRoster, 1)
+        if (startedHand > 1) {
+            const currentRoster = rosterFromScoreRows(teamScores, startedHand, true).map(entry => entry.playerId)
+            await fixture.saveFixtureTeamSheet(fixtureID, targetTeamId, currentRoster, startedHand)
+        }
+        existingSheet = await fixture.getFixtureTeamSheet(fixtureID, targetTeamId, startedHand)
+    }
+    const handFrom = mode === 'substitute' && (existingSheet.length || teamScores.length)
+        ? startedHand + 1 : 1
+    await fixture.saveFixtureTeamSheet(fixtureID, targetTeamId, normalizedPlayers, handFrom)
+    if (!['In Progress', 'Provisional', 'Confirmed'].includes(fixtureInfo.status)) {
+        await fixture.updateFixtureScore(fixtureID, fixtureInfo.homeScore, fixtureInfo.awayScore, 'In Progress')
+    }
+    req.session.user.gamesInProgress = fixtureID
+    req.session.user.Team = targetTeamId
+    req.session.teamSheet = normalizedPlayers.map(playerId => playerId ? String(playerId) : 'null')
+    req.session.teamSheetTeamId = String(targetTeamId)
     req.session.save()
-
-    if (!targetTeamId && fixtureInfo) {
-        targetTeamId = fixtureInfo.homeTeamID
-    }
-
-    let allPlayers = targetTeamId ? await player.getPlayerListForTeam(targetTeamId) : []
-    if ((!allPlayers || allPlayers.length === 0) && fixtureInfo) {
-        allPlayers = await player.getPlayerListForTeam(fixtureInfo.homeTeamID)
-        if (!allPlayers || allPlayers.length === 0) {
-            allPlayers = await player.getAllPlayers()
-        }
-    }
-
-    const rawSheet = Array.isArray(req.session.teamSheet) ? req.session.teamSheet : [req.session.teamSheet]
-    const mappedPlayers = rawSheet.map(id => {
-        if (id === 'null' || !id) return { alias: 'Empty' }
-        return allPlayers.find(p => p.id == id) || { alias: 'Unknown' }
-    })
-
-    let savedScores = await fixture.getTempScoresForUser(fixtureID, req.session.user.id || 1)
-    savedScores = savedScores.filter(entry => String(entry.Team) === String(targetTeamId))
-    if (savedScores.length === 0) {
-        const submittedScores = await scorecard.getScorecardsForFixture(fixtureID)
-        savedScores = (submittedScores || [])
-            .filter(entry => String(entry.Team) === String(targetTeamId))
-            .map(entry => ({
-                Hand: entry.Hand,
-                Team: entry.Team,
-                Player: entry.Player,
-                Position: entry.Position,
-                Score: entry.Score,
-                Bolters: entry.Bolters,
-                isFlopper: entry.isFlopper,
-                isSquare: entry.isSquare,
-                isChance: entry.isChance
-            }))
-        if (savedScores.length > 0) {
-            req.session.teamSheet = Array(8).fill('null')
-            savedScores.forEach(savedScore => {
-                if (savedScore.Position >= 0 && savedScore.Position < 8 && savedScore.Player) {
-                    req.session.teamSheet[savedScore.Position] = String(savedScore.Player)
-                }
-            })
-            req.session.save()
-        }
-    }
-    const resumeHand = savedScores.reduce((highestHand, savedScore) => {
-        return Math.max(highestHand, parseInt(savedScore.Hand) || 0)
-    }, 1)
-    const teamHandTotals = await getTeamHandTotals(fixtureID, fixtureInfo)
-
-    res.render('fixtures/scorecard', {
-        teamSheet: req.session.teamSheet,
-        players: mappedPlayers,
-        fixtureInfo: fixtureInfo,
-        savedScores: savedScores,
-        resumeHand: resumeHand,
-        teamHandTotals: teamHandTotals,
-        currentTeamId: targetTeamId
-    })
+    return res.redirect(`/fixtures/scorecard/new?gameid=${fixtureID}&teamId=${targetTeamId}`)
 })
 
 router.post('/scorecard', async (req, res) => {
@@ -573,42 +798,48 @@ router.post('/scorecard', async (req, res) => {
         return res.redirect('/users/login')
     }
 
-    const gameid = req.session.user.gamesInProgress || req.query.gameid || req.body.gameid
+    const gameid = req.body.gameid || req.query.gameid || req.session.user.gamesInProgress
     if (!gameid) {
         return res.redirect('/fixtures')
     }
 
-    const teamid = req.session.user.Team
+    const teamid = Number(req.body.teamId || req.session.user.Team)
     const userid = req.session.user.id || 1
 
     try {
         const fixtureInfo = await fixture.getFixtureInfo(gameid)
-        if (!canManageTeam(req.session.user, fixtureInfo, teamid)) {
-            return res.status(403).send('You cannot enter scores for this team.')
+        if (!fixtureInfo || !await canManageTeam(req.session.user, fixtureInfo, teamid)) {
+            return res.status(403).send('You cannot submit scores for this team.')
+        }
+        if (!await canSubmitTeamScorecard(req.session.user, fixtureInfo, teamid)) {
+            return res.status(403).send('Only the team captain, team secretary, or a developer can submit this scorecard.')
+        }
+        const alreadySubmitted = await scorecard.hasTeamSubmittedScorecard(gameid, teamid)
+        if (alreadySubmitted && !canEditSubmittedScorecard(req.session.user)) {
+            return res.status(403).send('Only the league secretary or a developer can edit a submitted scorecard.')
         }
         const playerScores = []
         let teamTotalScore = 0
 
-        for (let playerIndex = 0; playerIndex < 8; playerIndex++) {
-            let playerId = null
-            if (req.session.teamSheet && req.session.teamSheet[playerIndex]) {
-                const rawId = req.session.teamSheet[playerIndex]
-                playerId = (rawId === 'null' || !rawId) ? null : parseInt(rawId)
+        for (let handNumber = 1; handNumber <= 7; handNumber++) {
+            const sheet = await fixture.getFixtureTeamSheet(gameid, teamid, handNumber)
+            if (sheet.length !== 8) {
+                return res.status(400).send(`A team sheet must be set for hand ${handNumber} before submitting.`)
             }
-
-            for (let handNumber = 1; handNumber <= 7; handNumber++) {
+            for (let playerIndex = 0; playerIndex < 8; playerIndex++) {
                 const sKey = `score${handNumber}_${playerIndex}`
                 const bKey = `bolters${handNumber}_${playerIndex}`
 
                 const sVal = parseInt(req.body[sKey]) || 0
                 const bVal = parseInt(req.body[bKey]) || 0
+                const playerId = (sheet.find(entry => Number(entry.playerIndex) === playerIndex) || {}).playerId || null
 
                 teamTotalScore += sVal
 
                 playerScores.push({
-                    playerIndex: playerIndex,
-                    playerId: playerId,
-                    handNumber: handNumber,
+                    playerIndex,
+                    playerId,
+                    handNumber,
                     score: sVal,
                     bolters: bVal,
                     isFlopper: req.body[`flopper${handNumber}_${playerIndex}`] ? 1 : 0,
@@ -638,6 +869,7 @@ router.post('/scorecard', async (req, res) => {
 
         req.session.user.gamesInProgress = null
         req.session.teamSheet = null
+        req.session.teamSheetTeamId = null
         req.session.save()
 
         res.redirect(`/fixtures/scorecard?gameid=${gameid}`)
@@ -700,21 +932,53 @@ router.post('/scorecard/entry', async (req, res) => {
         const userid = req.session.user.id || req.user.id;
         const teamid = req.session.user.Team;
         const fixtureInfo = await fixture.getFixtureInfo(gameid)
-        if (!canManageTeam(req.session.user, fixtureInfo, teamid)) {
+        if (!fixtureInfo || !await canManageTeam(req.session.user, fixtureInfo, teamid)) {
             return res.status(403).send("Unauthorized");
         }
         const { handNumber, playerIndex, score, bolters, isFlopper, isSquare, isChance } = req.body;
-
-        let playerId = null;
-        if (req.session.teamSheet && req.session.teamSheet[playerIndex]) {
-            playerId = req.session.teamSheet[playerIndex] === 'null' ? null : parseInt(req.session.teamSheet[playerIndex]);
+        const hand = Number(handNumber)
+        const position = Number(playerIndex)
+        if (!Number.isInteger(hand) || hand < 1 || hand > 7 ||
+            !Number.isInteger(position) || position < 0 || position > 7) {
+            return res.status(400).send('Invalid hand or player position.')
         }
+        const alreadySubmitted = await scorecard.hasTeamSubmittedScorecard(gameid, teamid)
+        if (alreadySubmitted && !canEditSubmittedScorecard(req.session.user)) {
+            return res.status(403).send('Only the league secretary or a developer can edit a submitted scorecard.')
+        }
+        const sheet = await fixture.getFixtureTeamSheet(gameid, teamid, hand)
+        const playerId = (sheet.find(entry => Number(entry.playerIndex) === position) || {}).playerId || null
 
-        await fixture.saveTempScore(gameid, userid, handNumber, teamid, playerId, playerIndex, score || 0, bolters || 0, isFlopper ? 1 : 0, isSquare ? 1 : 0, isChance ? 1 : 0);
+        await fixture.markFixtureTeamHandStarted(gameid, teamid, hand)
+        await fixture.saveTempScore(gameid, userid, hand, teamid, playerId, position, score || 0, bolters || 0, isFlopper ? 1 : 0, isSquare ? 1 : 0, isChance ? 1 : 0);
         res.status(200).send("Saved");
     } catch (err) {
         console.error("Error saving score", err);
         res.status(500).send("Error");
+    }
+})
+
+router.post('/scorecard/hand', async (req, res) => {
+    if (!req.session.user || !req.session.user.gamesInProgress) {
+        return res.status(401).send('Unauthorized')
+    }
+
+    try {
+        const gameid = req.session.user.gamesInProgress
+        const teamid = req.session.user.Team
+        const fixtureInfo = await fixture.getFixtureInfo(gameid)
+        const handNumber = Number(req.body.handNumber)
+        if (!fixtureInfo || !await canManageTeam(req.session.user, fixtureInfo, teamid)) {
+            return res.status(403).send('Unauthorized')
+        }
+        if (!Number.isInteger(handNumber) || handNumber < 1 || handNumber > 7) {
+            return res.status(400).send('Invalid hand number.')
+        }
+        await fixture.markFixtureTeamHandStarted(gameid, teamid, handNumber)
+        return res.sendStatus(204)
+    } catch (error) {
+        console.error('Error recording started hand:', error)
+        return res.status(500).send('Unable to record the started hand.')
     }
 })
 

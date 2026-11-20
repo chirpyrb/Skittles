@@ -459,7 +459,7 @@ async function importFixturesFromCSVContent(csvContent, competitionIds, competit
 }
 // Create or update one temporary score entry for an in-progress game.
 async function saveTempScore(gameid, userid, hand, teamid, playerid, position, score, bolters, isFlopper = 0, isSquare = 0, isChance = 0) {
-    const tableName = `temptable_scores${gameid}_user${userid}`;
+    const tableName = `temptable_scores${gameid}_user0`;
 
     // Ensure table exists just in case
     await SQ3.execute(SQ3.db,
@@ -476,7 +476,7 @@ async function saveTempScore(gameid, userid, hand, teamid, playerid, position, s
         isFlopper INTEGER, \
         isChance INTEGER)`)
 
-    const existing = await SQ3.fetchFirst(SQ3.db, `SELECT id FROM ${tableName} WHERE Hand = ? AND Position = ?`, [hand, position]);
+    const existing = await SQ3.fetchFirst(SQ3.db, `SELECT id FROM ${tableName} WHERE Team = ? AND Hand = ? AND Position = ?`, [teamid, hand, position]);
     if (existing) {
         await SQ3.execute(SQ3.db, `UPDATE ${tableName} SET Player = ?, Score = ?, Bolters = ?, isFlopper = ?, isSquare = ?, isChance = ? WHERE id = ?`, [playerid, score, bolters, isFlopper, isSquare, isChance, existing.id]);
     } else {
@@ -490,6 +490,9 @@ async function getAllScoresForFixture(gameid) {
     const tables = await SQ3.fetchAll(SQ3.db, `SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'temptable\\_scores${gameid}\\_user%' ESCAPE '\\'`);
     const scoresByEntry = new Map();
     if (tables) {
+        tables.sort((first, second) => {
+            return Number(first.name.endsWith('_user0')) - Number(second.name.endsWith('_user0'))
+        })
         for (const table of tables) {
             const scores = await SQ3.fetchAll(SQ3.db, `
                 SELECT s.*, p.alias as playerName, t.teamName 
@@ -501,7 +504,17 @@ async function getAllScoresForFixture(gameid) {
             if (scores && scores.length) {
                 for (const score of scores) {
                     const entryKey = `${score.Team}_${score.Position}_${score.Hand}`;
-                    scoresByEntry.set(entryKey, score);
+                    const existing = scoresByEntry.get(entryKey);
+                    const hasScoreData = entry =>
+                        (Number(entry.Score) || 0) > 0 ||
+                        (Number(entry.Bolters) || 0) > 0 ||
+                        (Number(entry.isFlopper) || 0) > 0 ||
+                        (Number(entry.isSquare) || 0) > 0 ||
+                        (Number(entry.isChance) || 0) > 0;
+                    if (!existing || table.name.endsWith('_user0') ||
+                        hasScoreData(score) || !hasScoreData(existing)) {
+                        scoresByEntry.set(entryKey, score);
+                    }
                 }
             }
         }
@@ -513,15 +526,69 @@ async function getAllScoresForFixture(gameid) {
 
 // Return the temporary score entries for one user and game.
 async function getTempScoresForUser(gameid, userid) {
-    const tableName = `temptable_scores${parseInt(gameid)}_user${parseInt(userid)}`;
-    const table = await SQ3.fetchFirst(SQ3.db,
-        `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`,
-        tableName)
+    return await getAllScoresForFixture(gameid)
+}
 
-    if (!table) return []
+// Return the roster that applies to a team's position on a given hand.
+async function getFixtureTeamSheet(fixtureId, teamId, handNumber) {
+    return await SQ3.fetchAll(SQ3.db, `
+        SELECT playerIndex, playerId
+        FROM FixtureTeamSheets
+        WHERE fixtureId = ? AND teamId = ? AND handFrom = (
+            SELECT MAX(handFrom) FROM FixtureTeamSheets
+            WHERE fixtureId = ? AND teamId = ? AND handFrom <= ?
+        )
+        ORDER BY playerIndex ASC`,
+        [fixtureId, teamId, fixtureId, teamId, handNumber])
+}
 
-    return await SQ3.fetchAll(SQ3.db,
-        `SELECT Hand, Team, Player, Position, Score, Bolters, isFlopper, isSquare, isChance FROM ${tableName} ORDER BY Hand ASC, Position ASC`)
+// Save the team roster from a specific hand, preserving prior-hand selections.
+async function saveFixtureTeamSheet(fixtureId, teamId, players, handFrom) {
+    await SQ3.execute(SQ3.db, 'DELETE FROM FixtureTeamSheets WHERE fixtureId = ? AND teamId = ? AND handFrom >= ?', [fixtureId, teamId, handFrom])
+    for (let playerIndex = 0; playerIndex < players.length; playerIndex++) {
+        await SQ3.execute(SQ3.db,
+            'INSERT INTO FixtureTeamSheets(fixtureId, teamId, playerIndex, playerId, handFrom) VALUES (?, ?, ?, ?, ?)',
+            [fixtureId, teamId, playerIndex, players[playerIndex], handFrom])
+    }
+}
+
+// Return the hand that has been opened for a team, defaulting to the first hand.
+async function getFixtureTeamProgress(fixtureId, teamId) {
+    const progress = await SQ3.fetchFirst(SQ3.db,
+        'SELECT startedHand FROM FixtureTeamProgress WHERE fixtureId = ? AND teamId = ?',
+        [fixtureId, teamId])
+    return progress ? progress.startedHand : 1
+}
+
+// Record the highest hand started, preventing team-sheet changes after hand two.
+async function markFixtureTeamHandStarted(fixtureId, teamId, handNumber) {
+    await SQ3.execute(SQ3.db, `
+        INSERT INTO FixtureTeamProgress(fixtureId, teamId, startedHand) VALUES (?, ?, ?)
+        ON CONFLICT(fixtureId, teamId) DO UPDATE SET startedHand = MAX(startedHand, excluded.startedHand)`,
+        [fixtureId, teamId, handNumber])
+}
+
+// Correct the hand progress after removing blank entries written by old unload handlers.
+async function setFixtureTeamProgress(fixtureId, teamId, handNumber) {
+    await SQ3.execute(SQ3.db, `
+        INSERT INTO FixtureTeamProgress(fixtureId, teamId, startedHand) VALUES (?, ?, ?)
+        ON CONFLICT(fixtureId, teamId) DO UPDATE SET startedHand = excluded.startedHand`,
+        [fixtureId, teamId, handNumber])
+}
+
+// Remove only blank temporary entries from hands beyond the recovered progress.
+async function clearBlankTempScoresAfterHand(fixtureId, teamId, handNumber) {
+    const tables = await SQ3.fetchAll(SQ3.db,
+        `SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'temptable\\_scores${fixtureId}\\_user%' ESCAPE '\\'`)
+    for (const table of tables) {
+        await SQ3.execute(SQ3.db, `
+            DELETE FROM ${table.name}
+            WHERE Fixture = ? AND Team = ? AND Hand > ?
+                AND COALESCE(Score, 0) = 0 AND COALESCE(Bolters, 0) = 0
+                AND COALESCE(isFlopper, 0) = 0 AND COALESCE(isSquare, 0) = 0
+                AND COALESCE(isChance, 0) = 0`,
+            [fixtureId, teamId, handNumber])
+    }
 }
 
 // Import fixtures from a legacy CSV file and adjust dates for home-team nights.
@@ -703,6 +770,12 @@ module.exports = {
     saveTempScore,
     getAllScoresForFixture,
     getTempScoresForUser,
+    getFixtureTeamSheet,
+    saveFixtureTeamSheet,
+    getFixtureTeamProgress,
+    markFixtureTeamHandStarted,
+    setFixtureTeamProgress,
+    clearBlankTempScoresAfterHand,
     importFixturesFromCSV,
     groupFixturesByMonth,
     groupFixturesByCompetitionAndMonth,

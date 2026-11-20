@@ -20,14 +20,7 @@
     </div>
 </div>
 
-<% 
-    const canManageGame = typeof user !== 'undefined' && user && (
-        user.access === 'dev' || 
-        user.access === 'TeamCaptain' || 
-        user.access === 'LeagueSecretary' ||
-        (user.Team && (user.Team == gameInfo.homeTeamID || user.Team == gameInfo.awayTeamID))
-    );
-%>
+<% const canManageGame = typeof canEnterGame !== 'undefined' && canEnterGame; %>
 
 <% if (canManageGame) { %>
     <div style="margin: 20px 0; text-align: center;">
@@ -137,7 +130,7 @@
                                                     formattedScore = `{${formattedScore}}`;
                                                 }
                                             %>
-                                            <td><%= formattedScore %></td>
+                                            <td class="<%= (score.handSquares && score.handSquares[handIndex] ? 'score-square ' : '') + (score.handFloppers && score.handFloppers[handIndex] ? 'score-flopper' : '') %>"><%= formattedScore %></td>
                                         <% } %>
                                         <td class="scorecard-player-total">
                                             <%= score.total %><% if (score.bolters > 0) { %><sup><%= score.bolters %></sup><% } %>
