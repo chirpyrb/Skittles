@@ -116,6 +116,33 @@ function canEditSubmittedScorecard(user) {
     return isLeagueSecretary(user)
 }
 
+function getCompleteTeamScorecards(fixtureInfo, temporaryScores, submittedScores) {
+    const teamScorecards = new Map()
+
+    for (const teamId of [fixtureInfo.homeTeamID, fixtureInfo.awayTeamID]) {
+        const teamEntries = new Map()
+        for (const entry of temporaryScores || []) {
+            if (String(entry.Team) === String(teamId)) {
+                teamEntries.set(`${entry.Hand}_${entry.Position}`, entry)
+            }
+        }
+        for (const entry of submittedScores || []) {
+            if (String(entry.Team) === String(teamId)) {
+                teamEntries.set(`${entry.Hand}_${entry.Position}`, entry)
+            }
+        }
+
+        const complete = Array.from({ length: 7 }, (_, handIndex) =>
+            Array.from({ length: 8 }, (_, position) => teamEntries.get(`${handIndex + 1}_${position}`))
+        ).flat()
+        if (complete.some(entry => !entry)) return null
+
+        teamScorecards.set(String(teamId), complete)
+    }
+
+    return teamScorecards
+}
+
 async function renderTeamScorecard(req, res, fixtureInfo, teamId) {
     const user = req.session.user
     if (!await canManageTeam(user, fixtureInfo, teamId)) {
@@ -420,12 +447,9 @@ router.get('/scorecard', requireRegisteredUser, async (req, res) => {
 
         const approval = await fixture.getFixtureApprovalStatus(req.query.gameid)
         const user = req.session.user || req.user
-        const submittedTeamIds = new Set(
-            (submittedScores || []).map(entry => String(entry.Team))
-        )
+        const completeTeamScorecards = getCompleteTeamScorecards(gameInfo, temporaryScores, submittedScores)
         const canFinaliseScores = ['dev', 'LeagueSecretary'].includes(user && user.access) &&
-            submittedTeamIds.has(String(gameInfo.homeTeamID)) &&
-            submittedTeamIds.has(String(gameInfo.awayTeamID)) &&
+            completeTeamScorecards !== null &&
             approval && approval.status !== 'Confirmed'
         let canEnterGame = false
         for (const teamId of [gameInfo.homeTeamID, gameInfo.awayTeamID]) {
@@ -915,6 +939,45 @@ router.post('/scorecard/confirm', async (req, res) => {
     }
 
     try {
+        const fixtureInfo = await fixture.getFixtureInfo(req.body.gameid)
+        if (!fixtureInfo) {
+            return res.status(404).send('Fixture not found.')
+        }
+        if (fixtureInfo.status === 'Confirmed') {
+            return res.redirect(`/fixtures/scorecard?gameid=${req.body.gameid}`)
+        }
+        if (!['In Progress', 'Provisional', 'Completed'].includes(fixtureInfo.status)) {
+            return res.status(400).send('Only an active or completed fixture can be finalised.')
+        }
+        const temporaryScores = await fixture.getAllScoresForFixture(req.body.gameid)
+        const submittedScores = await scorecard.getScorecardsForFixture(req.body.gameid)
+        const teamScorecards = getCompleteTeamScorecards(fixtureInfo, temporaryScores, submittedScores)
+        if (!teamScorecards) {
+            return res.status(400).send('Both teams must have complete scorecards entered before finalising.')
+        }
+
+        const teamTotals = new Map()
+        for (const teamId of [fixtureInfo.homeTeamID, fixtureInfo.awayTeamID]) {
+            const playerScores = teamScorecards.get(String(teamId)).map(entry => ({
+                playerIndex: Number(entry.Position),
+                playerId: entry.Player || null,
+                handNumber: Number(entry.Hand),
+                score: Number(entry.Score) || 0,
+                bolters: Number(entry.Bolters) || 0,
+                isFlopper: Number(entry.isFlopper) || 0,
+                isSquare: Number(entry.isSquare) || 0,
+                isChance: Number(entry.isChance) || 0
+            }))
+            teamTotals.set(String(teamId), playerScores.reduce((total, entry) => total + entry.score, 0))
+            await scorecard.saveFinalScores(req.body.gameid, teamId, req.session.user.id, playerScores)
+        }
+
+        await fixture.updateFixtureScore(
+            req.body.gameid,
+            teamTotals.get(String(fixtureInfo.homeTeamID)),
+            teamTotals.get(String(fixtureInfo.awayTeamID)),
+            'Provisional'
+        )
         await fixture.finaliseFixture(req.body.gameid)
         res.redirect(`/fixtures/scorecard?gameid=${encodeURIComponent(req.body.gameid)}`)
     } catch (error) {
